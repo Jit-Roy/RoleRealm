@@ -109,23 +109,28 @@ class RoleplaySystem:
         char_names = ", ".join([char.persona.name for char in self.ai_characters])
         
         welcome = f"""
-╔══════════════════════════════════════════════════════════════╗
-║                                                              ║
-║              🎭 MULTI-CHARACTER ROLEPLAY SYSTEM 🎭           ║
-║                                                              ║
-║  You are: {self.player_name:<48}║
-║  Characters: {char_names:<44}║
-║                                                              ║
-╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║                      🎭 ROLEREALM SYSTEM 🎭                         ║
+║                                                                      ║
+║                  Interactive AI-Powered Roleplay                     ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
 
-The conversation will flow naturally. AI characters will decide 
-when to speak based on context, not fixed turns.
+You are playing as {self.player_name.upper()}, joined by {char_names}.
 
-Commands:
-  - Type normally to speak as your character
-  - 'skip' - Let AI characters continue talking without you
-  - 'quit' or 'exit' - End the roleplay session
+The conversation will flow naturally - AI characters will respond when they
+have something to say, creating an organic, dynamic storytelling experience!
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📜 COMMANDS:
+   • Just type naturally to speak as {self.player_name}
+   • 'skip' - Let AI characters continue talking without you
+   • 'info' - See character details
+   • 'quit' or 'exit' - End the roleplay session
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
         print(welcome)
     
