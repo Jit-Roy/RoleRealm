@@ -7,8 +7,8 @@ import time
 from roleplay_system import RoleplaySystem
 from config import Config
 from managers.storyManager import StoryManager
-from character_loader import load_characters
-from story_loader import load_story
+from loaders.character_loader import load_characters
+from loaders.story_loader import load_story
 
 
 def setup_scene(system: RoleplaySystem, title: str, location: str, description: str) -> None:
