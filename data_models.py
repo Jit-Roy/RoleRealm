@@ -14,7 +14,7 @@ class Message(BaseModel):
 
     speaker: str = Field(..., description="Name of the character speaking")
     content: str = Field(..., description="Content of the message")
-    action_description: Optional[str] = Field(
+    action_description: str = Field(
         default=None,
         description="Physical action or body language accompanying the message"
     )
@@ -75,15 +75,15 @@ class CharacterPersona(BaseModel):
         description="Information, secrets, or world knowledge specific to this character"
     )
     temperature: Optional[float] = Field(
-        default=None,
+        default=0.75,
         description="Model temperature for this character (affects response variability)"
     )
     top_p: Optional[float] = Field(
-        default=None,
+        default=0.9,
         description="Top-p sampling for this character"
     )
     frequency_penalty: Optional[float] = Field(
-        default=None,
+        default=0.2,
         description="Frequency penalty for this character (affects repetition)"
     )
 

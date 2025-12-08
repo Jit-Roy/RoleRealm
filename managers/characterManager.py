@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from data_models import CharacterPersona, Message, Character, CharacterMemory, CharacterState
 from config import Config
 from openrouter_client import GenerativeModel
+from helpers.response_parser import parse_json_response
 
 
 class CharacterManager:
@@ -15,7 +16,8 @@ class CharacterManager:
     
     def __init__(self):
         """Initialize CharacterManager."""
-        self.models: Dict[str, Any] = {}  
+        self.model_name = Config.DEFAULT_MODEL
+        self.model = GenerativeModel(self.model_name)
     
     def create_character(
         self, 
@@ -41,131 +43,85 @@ class CharacterManager:
         
         return Character(persona=persona, memory=memory, state=state)
     
-    def create_multiple_characters(
+    def update_character_memory(
         self,
-        personas: List[CharacterPersona]
-    ) -> List[Character]:
+        character: Character,
+        spoken_message: Optional[Message] = None,
+        perceived_message: Optional[Message] = None,
+        internal_thought: Optional[str] = None
+    ) -> None:
         """
-        Create multiple AI characters at once.
+        Update character's memory by adding spoken messages, perceived messages, or internal thoughts.
         
         Args:
-            personas: List of CharacterPersona objects
+            character: The Character to update
+            spoken_message: Message to add to character's spoken messages
+            perceived_message: Message to add to character's perceived messages  
+            internal_thought: Thought/observation to add to internal knowledge
+        """
             
-        Returns:
-            List of Character instances
-        """
-        return [self.create_character(persona) for persona in personas]
+        if spoken_message is not None:
+            character.memory.spoken_messages.append(spoken_message)
+        if perceived_message is not None:
+            character.memory.perceived_messages.append(perceived_message)
+        if internal_thought is not None:
+            character.memory.internal_thoughts.append(internal_thought)
     
-    def get_character_by_name(self, characters: List[Character], name: str) -> Optional[Character]:
+    def update_character_state(
+        self,
+        character: Character,
+        mood: Optional[str] = None,
+        focus: Optional[str] = None,
+        current_action: Optional[str] = None,
+        is_silent: Optional[bool] = None
+    ) -> None:
         """
-        Find a character by name.
+        Update character's current state (mood, focus, action, silence).
         
         Args:
-            characters: List of Character instances
-            name: Name to search for
-            
-        Returns:
-            Character if found, None otherwise
+            character: The Character to update
+            mood: Update character's mood
+            focus: Update character's focus
+            current_action: Update character's current action
+            is_silent: Update whether character is deliberately silent
         """
-        for character in characters:
-            if character.persona.name == name:
-                return character
-        return None
-    
-    def get_all_character_names(self, characters: List[Character]) -> List[str]:
-        """Get list of all character names."""
-        return [char.persona.name for char in characters]
-    
-    def update_character_mood(self, character: Character, mood: str) -> None:
-        """Update character's mood."""
-        if character.state:
+        if mood is not None:
             character.state.mood = mood
-    
-    def update_character_focus(self, character: Character, focus: str) -> None:
-        """Update what the character is focusing on."""
-        if character.state:
+        if focus is not None:
             character.state.focus = focus
+        if current_action is not None:
+            character.state.current_action = current_action
+        if is_silent is not None:
+            character.state.is_silent = is_silent
+        
     
-    def add_internal_thoughts(self, character: Character, knowledge: str) -> None:
-        """Add internal knowledge to character's memory (thoughts, observations, conclusions)."""
-        if character.memory:
-            character.memory.internal_thoughts.append(knowledge)
-    
-    def get_or_create_model(self, model_name: str = None) -> Any:
-        """Get or create a generative model."""
-        model_name = model_name or Config.DEFAULT_MODEL
-        if model_name not in self.models:
-            self.models[model_name] = GenerativeModel(model_name)
-        return self.models[model_name]
-    
-    def get_character_generation_params(self, character: Character) -> Dict[str, Any]:
-        """
-        Get character-specific generation parameters.
-        Each character has unique settings to create distinct voices.
-        
-        Args:
-            character: The Character instance
-            
-        Returns:
-            Dict of generation parameters (temperature, top_p, etc.)
-        """
-        # Use persona-defined params if available
-        if character.persona.temperature is not None:
-            return {
-                'temperature': character.persona.temperature,
-                'top_p': character.persona.top_p or 0.9,
-                'frequency_penalty': character.persona.frequency_penalty or 0.0
-            }
-        
-        # Otherwise, infer from personality traits
-        # This makes each character naturally distinct
-        traits_lower = [t.lower() for t in character.persona.traits]
-        
-        # Default base parameters
-        temperature = 0.75
-        top_p = 0.9
-        frequency_penalty = 0.2
-        
-        # Adjust based on traits
-        if any(word in ' '.join(traits_lower) for word in ['logical', 'precise', 'methodical', 'intelligent']):
-            temperature = 0.6  # More consistent, structured
-            top_p = 0.85
-        
-        if any(word in ' '.join(traits_lower) for word in ['impulsive', 'hot-headed', 'spontaneous', 'energetic']):
-            temperature = 0.85  # More variable, unpredictable
-            top_p = 0.92
-            frequency_penalty = 0.3
-        
-        if any(word in ' '.join(traits_lower) for word in ['quiet', 'reserved', 'thoughtful', 'shy']):
-            temperature = 0.65  # More measured responses
-            frequency_penalty = 0.1
-        
-        if any(word in ' '.join(traits_lower) for word in ['humorous', 'sarcastic', 'playful', 'joking']):
-            temperature = 0.8
-            frequency_penalty = 0.4  # Less repetitive jokes
-        
-        return {
-            'temperature': temperature,
-            'top_p': top_p,
-            'frequency_penalty': frequency_penalty
-        }
-    
-    def build_persona_context(self, character: Character) -> str:
-        """Build the character's personality context."""
+    def build_charracter_context(self, character: Character) -> str:
+        """Build the character's personality and current mood context."""
         relationships_str = "\n".join([
             f"- {char}: {rel}" 
             for char, rel in character.persona.relationships.items()
         ])
         
-        context = f"""You are {character.persona.name} in a roleplay conversation.
-
-YOUR PERSONALITY:
-- Traits: {', '.join(character.persona.traits)}
-- Speaking Style: {character.persona.speaking_style}
-- Background: {character.persona.background}
-
-YOUR RELATIONSHIPS:
-{relationships_str}"""
+        context = f"""You are {character.persona.name}.
+        YOUR PERSONALITY:
+        - Traits: {', '.join(character.persona.traits)}
+        - Speaking Style: {character.persona.speaking_style}
+        - Background: {character.persona.background}
+        YOUR RELATIONSHIPS:
+        {relationships_str}"""
+        
+        # Add goals if available
+        if character.persona.goals:
+            goals_str = "\n".join([f"- {goal}" for goal in character.persona.goals])
+            context += f"\n\nYOUR GOALS & MOTIVATIONS:\n{goals_str}"
+        
+        # Add knowledge base if available
+        if character.persona.knowledge_base:
+            knowledge_items = []
+            for key, value in character.persona.knowledge_base.items():
+                knowledge_items.append(f"- {key}: {value}")
+            knowledge_str = "\n".join(knowledge_items)
+            context += f"\n\nYOUR SPECIAL KNOWLEDGE:\n{knowledge_str}"
         
         # Add current state if available
         if character.state:
@@ -177,88 +133,42 @@ YOUR RELATIONSHIPS:
         
         return context
     
-    def get_character_perceived_messages(self, character: Character, all_messages: List[Message]) -> List[Message]:
-        """
-        Filter messages to what THIS character actually experienced.
-        Each character has their own perspective on the conversation.
-        
-        Args:
-            character: The Character instance
-            all_messages: All messages in the conversation
-            
-        Returns:
-            List of messages this character perceived
-        """
-        # For now, assume character perceives all messages they were present for
-        # You can enhance this with:
-        # - Characters missing messages if they left
-        # - Characters having different interpretations
-        # - Characters noticing different details
-        
-        # Use the character's memory if available
-        if character.memory and character.memory.perceived_messages:
-            return character.memory.perceived_messages
-        
-        # Otherwise return all messages (default: character was present for everything)
-        return all_messages
-    
-    def update_character_perception(self, character: Character, new_message: Message) -> None:
-        """
-        Add a message to what this character has perceived.
-        This builds each character's unique perspective.
-        
-        Args:
-            character: The Character instance
-            new_message: New message to add to their perception
-        """
-        if character.memory:
-            character.memory.perceived_messages.append(new_message)
-    
-    def build_conversation_context(self, messages: List[Message]) -> str:
-        """Build the conversation context string with actions noted."""
+    def build_conversation_context(self, character: Character) -> str:
+        """Build the conversation context string with actions noted from character's perceived messages."""
         context_lines = []
-        for msg in messages:
-            # Include action description if present
-            if msg.action_description:
+        if character.memory and character.memory.perceived_messages:
+            for msg in character.memory.perceived_messages:
                 context_lines.append(f"{msg.speaker}: *{msg.action_description}* {msg.content}")
-            else:
-                context_lines.append(f"{msg.speaker}: {msg.content}")
+        
         return "\n".join(context_lines)
     
-    def build_character_specific_context(self, character: Character, messages: List[Message]) -> str:
+    def build_character_specific_context(self, character: Character) -> str:
         """
         Build conversation context from THIS character's perspective.
         
         Args:
             character: The Character instance
-            messages: Messages this character perceived
             
         Returns:
-            Context string from character's POV
+            Context string from character's POV (uses character's perceived messages)
         """
         context_lines = []
-        for msg in messages:
-            # Frame messages from character's perspective
-            if msg.speaker == character.persona.name:
-                # This character's own messages - frame as "You said"
-                prefix = "You"
-            else:
-                # Other people's messages
-                prefix = msg.speaker
-            
-            if msg.action_description:
+        if character.memory and character.memory.perceived_messages:
+            for msg in character.memory.perceived_messages:
+                if msg.speaker == character.persona.name:
+                    # This character's own messages - frame as "You said"
+                    prefix = "You"
+                else:
+                    prefix = msg.speaker
+                
                 context_lines.append(f"{prefix}: *{msg.action_description}* {msg.content}")
-            else:
-                context_lines.append(f"{prefix}: {msg.content}")
         
         return "\n".join(context_lines)
     
     def build_decision_prompt(
         self, 
         character: Character,
-        conversation_history: List[Message], 
-        story_context: Optional[str] = None,
-        last_n_messages: int = None
+        story_context: Optional[str] = None
     ) -> str:
         """
         Build the prompt for deciding whether to speak FROM THIS CHARACTER'S PERSPECTIVE.
@@ -266,45 +176,30 @@ YOUR RELATIONSHIPS:
         
         Args:
             character: The AICharacter making the decision
-            conversation_history: Full conversation history
             story_context: Optional story context to guide the narrative
-            last_n_messages: Number of recent messages to include (defaults to Config.DEFAULT_CONTEXT_WINDOW)
             
         Returns:
             The complete prompt string
         """
-        # Get what THIS character actually perceived
-        perceived_messages = self.get_character_perceived_messages(character, conversation_history)
-        
-        # Get recent messages from character's perspective
-        context_window = last_n_messages or Config.DEFAULT_CONTEXT_WINDOW
-        recent_messages = (
-            perceived_messages[-context_window:] 
-            if len(perceived_messages) > context_window
-            else perceived_messages
-        )
-        
-        persona_context = self.build_persona_context(character)
-        # Use character-specific context (frames as "You said" vs "They said")
-        conversation_context = self.build_character_specific_context(character, recent_messages)
+
+        perceived_messages = character.memory.perceived_messages 
+        persona_context = self.build_charracter_context(character)
+        conversation_context = self.build_character_specific_context(character)
         
         # Add internal knowledge if character has any
         private_context = ""
         if character.memory and character.memory.internal_thoughts:
             recent_knowledge = character.memory.internal_thoughts[-3:]  # Last 3 items
             if recent_knowledge:
-                private_context = f"""
-WHAT ONLY YOU KNOW (your private thoughts/observations):
-{chr(10).join(f"- {item}" for item in recent_knowledge)}
-"""
+                private_context = f"""WHAT ONLY YOU KNOW (your private thoughts/observations): {chr(10).join(f"- {item}" for item in recent_knowledge)}"""
         
         # Detect if player is absent/withdrawn using the withdrawal detector
         from helpers.withdrawal_detector import WithdrawalDetector
         
         player_absent = False
         other_characters = []
-        if recent_messages:
-            last_msg = recent_messages[-1]
+        if perceived_messages:
+            last_msg = perceived_messages[-1]
             # Check if last message indicates player withdrawal
             # Use the withdrawal detector to analyze the action
             if last_msg.action_description:
@@ -314,7 +209,7 @@ WHAT ONLY YOU KNOW (your private thoughts/observations):
                 if is_leaving:
                     player_absent = True
                     # Find other active characters
-                    speakers = set(msg.speaker for msg in recent_messages[-5:])
+                    speakers = set(msg.speaker for msg in perceived_messages[-5:])
                     speakers.discard(last_msg.speaker)  # Remove the absent player
                     speakers.discard(character.persona.name)  # Remove self
                     other_characters = list(speakers)
@@ -431,37 +326,10 @@ IMPORTANT:
 """
         return prompt
     
-    def parse_json_response(self, response_text: str) -> dict:
-        """
-        Parse JSON response, handling markdown code blocks.
-        
-        Args:
-            response_text: Raw response text from the model
-            
-        Returns:
-            Parsed JSON dictionary
-        """
-        response_text = response_text.strip()
-        
-        # Remove markdown code blocks
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        elif response_text.startswith("```"):
-            response_text = response_text[3:]
-        
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-        
-        response_text = response_text.strip()
-        
-        return json.loads(response_text)
-    
     def decide_to_speak(
         self, 
         character: Character,
-        conversation_history: List[Message],
-        story_context: Optional[str] = None,
-        model_name: str = None
+        story_context: Optional[str] = None
     ) -> Tuple[bool, float, str, Optional[str], Optional[str]]:
         """
         Decide whether this character should speak using THEIR perspective and parameters.
@@ -469,7 +337,6 @@ IMPORTANT:
         
         Args:
             character: The Character making the decision
-            conversation_history: The full conversation history
             story_context: Optional story context to guide responses
             model_name: Optional model name override
             
@@ -478,17 +345,20 @@ IMPORTANT:
         """
         try:
             # Build prompt from THIS character's perspective
-            prompt = self.build_decision_prompt(character, conversation_history, story_context)
-            model = self.get_or_create_model(model_name)
+            prompt = self.build_decision_prompt(character, story_context)
             
             # Get character-specific generation parameters
-            gen_params = self.get_character_generation_params(character)
+            gen_params = {
+                'temperature': character.persona.temperature,
+                'top_p': character.persona.top_p,
+                'frequency_penalty': character.persona.frequency_penalty
+            }
             
             # Generate with character's unique settings
-            response = model.generate_content(prompt, **gen_params)
+            response = self.model.generate_content(prompt, **gen_params)
             
             # Parse JSON response
-            decision_data = self.parse_json_response(response.text)
+            decision_data = parse_json_response(response.text)
             
             return (
                 decision_data.get("wants_to_speak", False),
@@ -511,14 +381,6 @@ IMPORTANT:
             error_msg = f"Error: {type(e).__name__}: {str(e)}"
             return (False, 0.0, error_msg, None, None)
     
-    def add_spoken_message(self, character: Character, message: Message) -> None:
-        """
-        Add a message to character's spoken messages memory.
-        This tracks what the character themselves said.
-        """
-        if character.memory and message.speaker == character.persona.name:
-            character.memory.spoken_messages.append(message)
-    
     def broadcast_message_to_characters(self, characters: List[Character], message: Message) -> None:
         """
         Add a message to all characters' perceived messages.
@@ -529,8 +391,7 @@ IMPORTANT:
             message: The message being spoken
         """
         for character in characters:
-            if character.memory:
-                character.memory.perceived_messages.append(message)
+            self.update_character_memory(character, perceived_message=message)
     
     def decide_to_speak_with_timing(
         self,
@@ -538,8 +399,7 @@ IMPORTANT:
         messages: List[Message],
         time_since_last_message: float,
         awkward_silence_threshold: float,
-        story_context: Optional[str] = None,
-        model_name: str = None
+        story_context: Optional[str] = None
     ) -> Tuple[bool, float, str, Optional[str]]:
         """
         Decide whether character should speak, considering timing and emotional state.
@@ -573,8 +433,8 @@ IMPORTANT:
                 timing_info += f"\n🎯 DIRECT ADDRESS: {last_msg.speaker} just said something to you specifically!"
         
         # Build enhanced prompt with timing
-        persona_context = self.build_persona_context(character)
-        conversation_context = self.build_conversation_context(messages[-15:] if len(messages) > 15 else messages)
+        persona_context = self.build_charracter_context(character)
+        conversation_context = self.build_conversation_context(character)
         
         # Check what this character said recently
         recent_own_messages = [msg.content for msg in messages[-5:] if msg.speaker == character.persona.name]
@@ -651,9 +511,8 @@ CRITICAL:
 """
         
         try:
-            model = self.get_or_create_model(model_name)
-            response = model.generate_content(prompt)
-            decision_data = self.parse_json_response(response.text)
+            response = self.model.generate_content(prompt)
+            decision_data = parse_json_response(response.text)
             
             # Boost priority if direct address or awkward silence
             priority = decision_data.get("priority", 0.0)
