@@ -214,9 +214,8 @@ class TurnManager:
                     # Events interrupt the AI conversation flow
                     break
             
-            print("\n🤔 AI characters are thinking...")
-            
             # Ask ONE character at a time (sequentially, not in parallel)
+            # Note: select_next_speaker() prints its own "thinking" and "no one speaks" messages
             result = self.select_next_speaker()
             
             if result is None:
@@ -294,18 +293,18 @@ class TurnManager:
             content=f"[Environment] {description}"
         )
         self.message_manager.add_message(self.scene, narrator_msg)
-            time.sleep(2)
-            character_names = [char.persona.name for char in self.characters]
-            wakeup = self.narrator_manager.generate_wakeup_event(
-                self.player_name,
-                character_names
+        time.sleep(2)
+        character_names = [char.persona.name for char in self.characters]
+        wakeup = self.narrator_manager.generate_wakeup_event(
+            self.player_name,
+            character_names
+        )
+        if wakeup:
+            print(f"\n{wakeup}\n")
+            print("="*70 + "\n")
+            # Add wakeup as narrator message
+            wakeup_msg = self.message_manager.create_message(
+                speaker="Narrator",
+                content=f"[Wakeup Event] {wakeup}"
             )
-            if wakeup:
-                print(f"\n{wakeup}\n")
-                print("="*70 + "\n")
-                # Add wakeup as narrator message
-                wakeup_msg = self.message_manager.create_message(
-                    speaker="Narrator",
-                    content=f"[Wakeup Event] {wakeup}"
-                )
-                self.message_manager.add_message(self.scene, wakeup_msg)
+            self.message_manager.add_message(self.scene, wakeup_msg)

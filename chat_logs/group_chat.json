@@ -1,5 +1,5 @@
 {
-  "id": "45fd4563-bbdb-4d26-a46e-1f8451f14293",
+  "id": "965a7c34-c5dc-4dd9-b260-1dd5b8d29ba3",
   "title": "Evening in the Common Room",
   "scene_description": "Location: Gryffindor Common Room, Hogwarts - It's evening in the Gryffindor common room. The fire crackles in the hearth, casting warm shadows on the scarlet and gold tapestries. Most students have gone to bed, but the group remains in their favorite armchairs near the fireplace. The atmosphere is relaxed - perfect for a chat between friends.",
   "messages": [
@@ -7,43 +7,7 @@
       "speaker": "Harry",
       "content": "Hey, it's good to see you both. How's everyone doing?",
       "action_description": null,
-      "timestamp": "2025-12-07 17:17:03.629311"
-    },
-    {
-      "speaker": "Hermione",
-      "content": "Harry! I'm doing wonderfully, thanks—just revising some charms. How about you? Ron's probably fine too, though honestly, he should be doing his essay.",
-      "action_description": "looks up from her Arithmancy book on the armchair, setting it aside with a bright smile, tucking a bushy strand of hair behind her ear",
-      "timestamp": "2025-12-07 17:17:22.858342"
-    },
-    {
-      "speaker": "Ron",
-      "content": "Oi, I'm brilliant now I've got this pasty, Hermione—essay can wait! You alright, Harry? You look proper knackered, mate.",
-      "action_description": "*glances up from sprawled on the squashy armchair with a half-eaten pumpkin pasty in hand, wiping crumbs from my mouth with a grin*",
-      "timestamp": "2025-12-07 17:17:40.990771"
-    },
-    {
-      "speaker": "Harry",
-      "content": "I am fine guys , just a bit tired. Can i explain everything tommorrow? I wanna get some sleep now.",
-      "action_description": null,
-      "timestamp": "2025-12-07 17:18:57.596775"
-    },
-    {
-      "speaker": "Ron",
-      "content": "Alright, mate, get some kip if you need it. But you sure you're okay? That 'everything' sounds a bit mental— we'll hear it tomorrow, yeah?",
-      "action_description": "*finishes the last bite of pasty with a quick chew, sits up straighter in the armchair, eyebrows knitting together in worry as I brush more crumbs off my robes*",
-      "timestamp": "2025-12-07 17:19:15.276380"
-    },
-    {
-      "speaker": "Hermione",
-      "content": "Harry, wait—you don't look fine at all, honestly. Whatever this 'everything' is, we're here for you, okay? Get some rest, but promise you'll tell us tomorrow?",
-      "action_description": "*frowns with genuine concern, rising slightly from the armchair and reaching out a hand towards Harry, her voice softening*",
-      "timestamp": "2025-12-07 17:19:33.007316"
-    },
-    {
-      "speaker": "Harry",
-      "content": "Ok byee guys .",
-      "action_description": "Harry went to sleep",
-      "timestamp": "2025-12-07 17:20:28.769693"
+      "timestamp": "2025-12-08 09:06:01.868321"
     }
   ],
   "participants": [
@@ -52,6 +16,6 @@
     "Ron"
   ],
   "conversation_summary": null,
-  "start_time": "2025-12-07T17:17:03.607187",
+  "start_time": "2025-12-08T09:06:01.843826",
   "visible_to_user": true
 }

@@ -171,20 +171,26 @@ YOUR RELATIONSHIPS:
         persona_context = self.build_persona_context(character)
         conversation_context = self.build_conversation_context(recent_messages)
         
-        # Detect if player is absent/withdrawn (based on action_description field)
+        # Detect if player is absent/withdrawn using the withdrawal detector
+        from helpers.withdrawal_detector import WithdrawalDetector
+        
         player_absent = False
         other_characters = []
         if recent_messages:
             last_msg = recent_messages[-1]
-            # Check if the last message has an action description indicating leaving
-            # The withdrawal detector already validated this is a leaving action
+            # Check if last message indicates player withdrawal
+            # Use the withdrawal detector to analyze the action
             if last_msg.action_description:
-                player_absent = True
-                # Find other active characters
-                speakers = set(msg.speaker for msg in recent_messages[-5:])
-                speakers.discard(last_msg.speaker)  # Remove the absent player
-                speakers.discard(character.persona.name)  # Remove self
-                other_characters = list(speakers)
+                detector = WithdrawalDetector()
+                # Analyze if the action means leaving
+                is_leaving = detector.is_leaving_action(last_msg.action_description)
+                if is_leaving:
+                    player_absent = True
+                    # Find other active characters
+                    speakers = set(msg.speaker for msg in recent_messages[-5:])
+                    speakers.discard(last_msg.speaker)  # Remove the absent player
+                    speakers.discard(character.persona.name)  # Remove self
+                    other_characters = list(speakers)
         
         # Add story context if provided
         story_section = ""
@@ -236,17 +242,20 @@ WHEN NOT TO SPEAK (stay quiet):
 - You JUST spoke in the last message (let others respond first)
 - Someone else already said exactly what you'd say
 - You've made the same point 2-3+ times already (don't be repetitive!)
+- **If others already reacted to danger/concern, you don't need to pile on with the SAME reaction**
 - Someone clearly wants to end a topic and you'd just push it again
 - Another character is better suited to respond to this specific topic
 - The conversation doesn't involve you and you have nothing unique to add
+- **Multiple people already said similar things - don't be the third person saying the same thing**
 
 SPECIAL SITUATIONS:
 - **RESPECT BOUNDARIES**: If someone has stated their position 3+ times, accept it or change approach
-- **REACT TO DANGER/CONCERN**: If friend mentions pain/danger/threat, ALWAYS respond with concern!
+- **REACT TO DANGER/CONCERN**: If friend mentions pain/danger/threat, respond with concern ONLY if you have something UNIQUE to add beyond what others said
 - **WITHDRAWAL CONTEXT**: If someone needs rest after revealing something serious, acknowledge both parts
-- **DON'T GANG UP**: If another character is already confronting someone, don't pile on unless you have a DIFFERENT view
-- **BE INDEPENDENT**: Have your own opinions - don't just echo what others said
+- **DON'T GANG UP**: If another character already made your exact point (e.g. "see Dumbledore"), DON'T repeat it - offer a DIFFERENT suggestion or stay quiet
+- **BE INDEPENDENT**: Have your own opinions - don't just echo what others said with slightly different words
 - **NATURAL FLOW**: Sometimes "Alright, if you say so" or changing subjects IS the right move
+- **CHECK WHAT OTHERS SAID**: Look at the last 2-3 messages. If they already covered your concern, you don't need to repeat it
 
 OUTPUT FORMAT (strict JSON):
 {{

@@ -152,15 +152,19 @@ class NarratorManager:
                 last_few = recent_messages[-3:]
                 conversation_summary = "\n".join([f"{msg.speaker}: {msg.content[:100]}" for msg in last_few])
             
-            # Check if player is absent (based on action_description set by withdrawal detector)
+            # Check if player is absent using the withdrawal detector
+            from helpers.withdrawal_detector import WithdrawalDetector
+            
             player_absent = False
             if recent_messages:
                 last_msg = recent_messages[-1]
                 # Check if the last message was from player with a leaving action
                 if last_msg.speaker == player_name and last_msg.action_description:
-                    # Player has an action description - could be leaving
-                    # We rely on the withdrawal detector to have properly detected this
-                    player_absent = True
+                    # Use withdrawal detector to verify if this is actually a leaving action
+                    detector = WithdrawalDetector()
+                    is_leaving = detector.is_leaving_action(last_msg.action_description)
+                    if is_leaving:
+                        player_absent = True
             
             # Build history context to avoid repetition
             history_context = ""
