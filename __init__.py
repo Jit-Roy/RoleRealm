@@ -7,6 +7,8 @@ This module re-exports models and managers from other modules for backward compa
 from data_models import (
     Message,
     Scene,
+    TimelineHistory,
+    TimelineEvent,
     CharacterPersona,
     CharacterMemory,
     CharacterState,
@@ -14,21 +16,21 @@ from data_models import (
 )
 
 # Re-export managers
-from managers.messageManager import MessageManager
-from managers.sceneManager import SceneManager
+from managers.timelineManager import TimelineManager
 from managers.characterManager import CharacterManager
 
 __all__ = [
     # Data models
     'Message',
     'Scene',
+    'TimelineHistory',
+    'TimelineEvent',
     'CharacterPersona',
     'CharacterMemory',
     'CharacterState',
     'Character',
     # Managers
-    'MessageManager',
-    'SceneManager',
+    'TimelineManager',
     'CharacterManager'
 ]
 

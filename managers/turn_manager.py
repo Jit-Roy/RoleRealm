@@ -1,7 +1,7 @@
 """
 Turn management system for natural conversation flow.
 Handles ONLY turn decision logic - determines who should speak next.
-All message operations are delegated to MessageManager.
+All timeline operations are delegated to TimelineManager.
 """
 
 import random
@@ -9,12 +9,10 @@ import time
 from typing import List, Optional, Tuple
 from colorama import Fore, Style
 
-from data_models import Message, MessageHistory, Character
-from managers.messageManager import MessageManager
-from managers.sceneManager import SceneManager
+from data_models import Message, TimelineHistory, Character, Scene
+from managers.timelineManager import TimelineManager
 from managers.characterManager import CharacterManager
 from managers.storyManager import StoryManager
-from managers.sceneManager import NarratorManager
 from config import Config
 
 
@@ -33,7 +31,8 @@ class TurnManager:
         characters: List[Character],
         player_name: str,
         story_manager: Optional[StoryManager] = None,
-        narrator_manager: Optional[NarratorManager] = None,
+        initial_location: str = "Common Room",
+        initial_scene_description: str = None,
         max_consecutive_ai_turns: int = None,
         priority_randomness: float = None
     ):
@@ -44,27 +43,34 @@ class TurnManager:
             characters: List of AI characters in the conversation
             player_name: Name of the human player
             story_manager: Optional story manager for narrative progression
-            narrator_manager: Optional narrator manager for scene transitions
+            initial_location: Starting location for the timeline
+            initial_scene_description: Optional initial scene description
             max_consecutive_ai_turns: Maximum number of consecutive AI turns (defaults to Config.MAX_CONSECUTIVE_AI_TURNS)
             priority_randomness: Random factor to add to priority for naturalness (defaults to Config.PRIORITY_RANDOMNESS)
         """
         self.characters = characters
         self.player_name = player_name
         self.story_manager = story_manager
-        self.narrator_manager = narrator_manager or NarratorManager()
         self.max_consecutive_ai_turns = max_consecutive_ai_turns or Config.MAX_CONSECUTIVE_AI_TURNS
         self.priority_randomness = priority_randomness or Config.PRIORITY_RANDOMNESS
         
         # Initialize managers
-        self.message_manager = MessageManager()
-        self.scene_manager = SceneManager()
+        self.timeline_manager = TimelineManager()
         self.character_manager = CharacterManager()
         
-        # Initialize scene with all participants
+        # Initialize timeline
         all_participants = [player_name] + [char.persona.name for char in characters]
-        self.scene = self.scene_manager.create_scene(
+        self.timeline = self.timeline_manager.create_timeline_history(
+            title=f"Conversation at {initial_location}",
             participants=all_participants
         )
+        
+        # Add initial scene as first event
+        initial_scene = self.timeline_manager.create_scene(
+            location=initial_location,
+            description=initial_scene_description or f"The scene begins at {initial_location}."
+        )
+        self.timeline_manager.add_event(self.timeline, initial_scene)
         
         self.turn_count = 0
         self.consecutive_silence_rounds = 0
@@ -84,10 +90,13 @@ class TurnManager:
         if self.story_manager:
             story_context = self.story_manager.get_story_context()
         
+        # Get recent messages from timeline
+        recent_messages = self.timeline_manager.get_recent_messages(self.timeline)
+        
         for character in self.characters:
             wants_to_speak, priority, reasoning, action_desc, message = self.character_manager.decide_to_speak(
                 character,
-                self.scene.messages,
+                recent_messages,
                 story_context=story_context
             )
             
@@ -157,7 +166,9 @@ class TurnManager:
         Returns:
             Tuple of (character, action_description, message) for the selected speaker, or None
         """
-        if not self.scene.messages:
+        # Check if there are any messages in the timeline
+        recent_messages = self.timeline_manager.get_recent_messages(self.timeline)
+        if not recent_messages:
             return None
         
         print("\n🤔 AI characters are thinking...")
@@ -200,8 +211,9 @@ class TurnManager:
             if self.story_manager and consecutive_count >= 2:
                 # Check if player recently withdrew (last message has leaving action)
                 player_withdrawn = False
-                if self.scene.messages:
-                    last_msg = self.scene.messages[-1]
+                recent_messages = self.timeline_manager.get_recent_messages(self.timeline)
+                if recent_messages:
+                    last_msg = recent_messages[-1]
                     if last_msg.action_description:
                         from helpers.withdrawal_detector import WithdrawalDetector
                         detector = WithdrawalDetector()
@@ -209,20 +221,21 @@ class TurnManager:
                 
                 # Only check for events if player hasn't withdrawn
                 if not player_withdrawn:
-                    message_count = len(self.scene.messages)
+                    message_count = len(recent_messages)
                     event = self.story_manager.check_for_story_event(
                         silence_duration=consecutive_count,
                         message_count=message_count,
-                        recent_messages=self.scene.messages[-3:] if len(self.scene.messages) >= 3 else self.scene.messages
+                        recent_messages=recent_messages[-3:] if len(recent_messages) >= 3 else recent_messages
                     )
                     if event:
                         self.story_manager.display_story_event(event)
-                        # Add event as a narrative message
-                        event_msg = self.message_manager.create_message(
-                            speaker="Narrator",
-                            content=f"[{event['title']}] {event['description']}"
+                        # Add event as a scene
+                        current_location = self.timeline_manager.get_current_location(self.timeline)
+                        event_scene = self.timeline_manager.add_scene(
+                            self.timeline,
+                            location=current_location or "Unknown",
+                            description=f"[{event['title']}] {event['description']}"
                         )
-                        self.message_manager.add_message(self.scene, event_msg)
                         # Events interrupt the AI conversation flow
                         break
             
@@ -234,14 +247,10 @@ class TurnManager:
                 # No one wants to speak - increment silence counter
                 self.consecutive_silence_rounds += 1
                 
-                # Check if narrator should intervene
-                if self.narrator_manager.detect_conversation_stagnation(
-                    self.consecutive_silence_rounds,
-                    self.scene.messages,
-                    self.player_name
-                ):
-                    self._trigger_narrator_intervention()
-                    # Reset silence counter after intervention
+                # Generate scene event when conversation stalls
+                if self.consecutive_silence_rounds >= 2:
+                    self._generate_scene_event()
+                    # Reset silence counter after scene event
                     self.consecutive_silence_rounds = 0
                 
                 break
@@ -258,13 +267,13 @@ class TurnManager:
             
             responses.append((character, message))
             
-            # Add the message to the scene with separate action_description field
-            message_obj = self.message_manager.create_message(
+            # Add the message to the timeline
+            message_obj = self.timeline_manager.add_message(
+                self.timeline,
                 speaker=character.persona.name,
                 content=message,
                 action_description=action_desc
             )
-            self.message_manager.add_message(self.scene, message_obj)
             
             # Broadcast this message to all characters' perceived messages
             # Each character now has this in their own perspective
@@ -284,49 +293,30 @@ class TurnManager:
             # Small delay for readability and to let next character see the context
             time.sleep(2)
         
-        # After the conversation loop ends, if we had responses, generate an environmental moment
-        # This creates atmosphere at natural conversation endpoints
-        if responses and consecutive_count > 0:
-            time.sleep(1)
-            self._trigger_narrator_intervention()
-        
         return responses
     
-    def _trigger_narrator_intervention(self) -> None:
-        """Trigger narrator to create an environmental description."""
+    def _generate_scene_event(self) -> None:
+        """Generate a dramatic scene event when conversation stalls."""
         print("\n" + "─"*70)
-        print("🌅 ENVIRONMENTAL MOMENT")
+        print("🌅 SCENE EVENT")
         print("─"*70)
         
-        # Generate environmental description
-        description = self.narrator_manager.generate_transition_narrative(
-            current_scene=self.scene_manager.location,
-            recent_messages=self.scene.messages,
-            silence_rounds=self.consecutive_silence_rounds,
-            player_name=self.player_name
-        )
-        
-        print(f"\n{description}\n")
-        print("─"*70)
-        
-        # Add narrator message to scene
-        narrator_msg = self.message_manager.create_message(
-            speaker="Narrator",
-            content=f"[Environment] {description}"
-        )
-        self.message_manager.add_message(self.scene, narrator_msg)
-        time.sleep(2)
+        # Get characters present
         character_names = [char.persona.name for char in self.characters]
-        wakeup = self.narrator_manager.generate_wakeup_event(
-            self.player_name,
-            character_names
-        )
-        if wakeup:
-            print(f"\n{wakeup}\n")
-            print("="*70 + "\n")
-            # Add wakeup as narrator message
-            wakeup_msg = self.message_manager.create_message(
-                speaker="Narrator",
-                content=f"[Wakeup Event] {wakeup}"
+        all_present = [self.player_name] + character_names
+        
+        # Generate scene event
+        try:
+            scene = self.timeline_manager.generate_scene_event(
+                timeline=self.timeline,
+                characters_present=all_present,
+                recent_message_count=10
             )
-            self.message_manager.add_message(self.scene, wakeup_msg)
+            
+            print(f"\n{scene.description}\n")
+            print("─"*70)
+            time.sleep(2)
+            
+        except Exception as e:
+            print(f"\nError generating scene event: {e}\n")
+            print("─"*70)

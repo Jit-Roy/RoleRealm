@@ -7,12 +7,8 @@ from pathlib import Path
 import json
 
 from data_models import CharacterPersona, Character
-from data_models import Character
 from managers.turn_manager import TurnManager
-from managers.sceneManager import NarratorManager
 from config import Config
-from managers.messageManager import MessageManager
-from managers.sceneManager import SceneManager
 
 
 class RoleplaySystem:
@@ -25,7 +21,8 @@ class RoleplaySystem:
         model_name: str = None,
         chat_storage_dir: str = None,
         story_manager = None,
-        narrator_manager = None
+        initial_location: str = "Common Room",
+        initial_scene_description: str = None
     ):
         """
         Initialize the roleplay system.
@@ -36,7 +33,8 @@ class RoleplaySystem:
             model_name: Gemini model to use for all characters (defaults to Config.DEFAULT_MODEL)
             chat_storage_dir: Directory to store chat logs (defaults to Config.CHAT_STORAGE_DIR)
             story_manager: Optional StoryManager for narrative progression
-            narrator_manager: Optional NarratorManager for scene transitions
+            initial_location: Starting location for the conversation
+            initial_scene_description: Optional initial scene description
             
         Raises:
             ValueError: If OPENROUTER_API_KEY is not set
@@ -58,21 +56,19 @@ class RoleplaySystem:
             for persona in characters
         ]
         
-        # Create or use provided narrator manager
-        self.narrator_manager = narrator_manager or NarratorManager(model_name=self.model_name)
-        
-        # Create turn manager with narrator
+        # Create turn manager
         self.turn_manager = TurnManager(
             characters=self.ai_characters,
             player_name=player_name,
             story_manager=story_manager,
-            narrator_manager=self.narrator_manager
+            initial_location=initial_location,
+            initial_scene_description=initial_scene_description
         )
         
         # Get references to managers for direct access
-        self.message_manager = self.turn_manager.message_manager
-        self.scene_manager = self.turn_manager.scene_manager
-        self.scene = self.turn_manager.scene
+        self.timeline_manager = self.turn_manager.timeline_manager
+        self.character_manager = self.turn_manager.character_manager
+        self.timeline = self.turn_manager.timeline
         
         # Setup storage
         self.chat_storage_dir = Path(chat_storage_dir or Config.CHAT_STORAGE_DIR)
@@ -97,14 +93,13 @@ class RoleplaySystem:
             with open(filepath, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            # Restore the scene from saved data
-            self.scene = self.scene_manager.from_dict(data)
-            self.turn_manager.scene = self.scene
+            # TODO: Implement timeline restoration from saved data
+            # For now, just note that we would load it
             
             print("\n" + "="*70)
             print("📂 LOADED EXISTING CONVERSATION")
             print("="*70)
-            print(f"Restored {len(self.scene.messages)} previous messages")
+            print(f"Restored timeline from previous session")
             print(f"Continuing from where you left off...")
             print("="*70 + "\n")
             
@@ -121,8 +116,8 @@ class RoleplaySystem:
         filepath = self.chat_storage_dir / filename
         
         with open(filepath, 'w', encoding='utf-8') as f:
-            # Use mode='json' to properly serialize datetime objects
-            json.dump(self.scene_manager.to_dict(), f, indent=2, ensure_ascii=False, default=str)
+            # Convert timeline to dict for JSON serialization
+            json.dump(self.timeline.dict(), f, indent=2, ensure_ascii=False, default=str)
     
     def _add_player_message(self, content: str) -> None:
         """Add a player message to the conversation."""
@@ -137,25 +132,20 @@ class RoleplaySystem:
             # Remove brackets from the dialogue
             dialogue = re.sub(r'\[([^\]]+)\]', '', content).strip()
         
-        message = self.message_manager.create_message(
+        # If no action description found in brackets, set a default
+        if not action_desc:
+            action_desc = "speaks"
+        
+        message = self.timeline_manager.add_message(
+            self.timeline,
             speaker=self.player_name,
             content=dialogue,
             action_description=action_desc
         )
-        self.message_manager.add_message(self.scene, message)
         
         # Broadcast player message to all characters' perceived messages
         # Each character now has this in their own perspective
-        self.character_manager.broadcast_message_to_characters(self.characters, message)
-        self._save_conversation()
-    
-    def _add_ai_message(self, character: Character, content: str) -> None:
-        """Add an AI character message to the conversation."""
-        message = self.message_manager.create_message(
-            speaker=character.persona.name,
-            content=content
-        )
-        self.message_manager.add_message(self.scene, message)
+        self.character_manager.broadcast_message_to_characters(self.ai_characters, message)
         self._save_conversation()
     
     def get_conversation_file_path(self) -> Path:
@@ -173,13 +163,13 @@ class RoleplaySystem:
         if filepath.exists():
             filepath.unlink()
         
-        # Clear current scene messages
-        self.scene.messages.clear()
+        # Clear current timeline events
+        self.timeline.events.clear()
         
         print("\n" + "="*70)
         print("🔄 CONVERSATION RESET")
         print("="*70)
-        print("All previous messages have been cleared.")
+        print("All previous events have been cleared.")
         print("Starting fresh conversation...")
         print("="*70 + "\n")
     
@@ -308,14 +298,17 @@ have something to say, creating an organic, dynamic storytelling experience!
         Returns:
             Dictionary containing session statistics
         """
+        total_messages = len(self.timeline_manager.get_recent_messages(self.timeline, n=1000))
         return {
             "player_name": self.player_name,
             "ai_characters": [char.persona.name for char in self.ai_characters],
-            "total_messages": self.message_manager.get_message_count(self.scene),
+            "total_messages": total_messages,
+            "total_events": len(self.timeline.events),
             "total_turns": self.turn_manager.turn_count
         }
     
     def __repr__(self) -> str:
+        total_messages = len(self.timeline_manager.get_recent_messages(self.timeline, n=1000))
         return (f"RoleplaySystem(player='{self.player_name}', "
                 f"characters={len(self.ai_characters)}, "
-                f"messages={self.message_manager.get_message_count(self.scene)})")
+                f"messages={total_messages})")

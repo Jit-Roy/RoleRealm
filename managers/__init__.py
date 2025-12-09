@@ -1,9 +1,7 @@
 """
-Managers package for handling messages, scenes, and characters.
+Managers package for handling timeline events and characters.
 """
-from managers.messageManager import MessageManager
-from managers.sceneManager import SceneManager
+from managers.timelineManager import TimelineManager
 from managers.characterManager import CharacterManager
-from managers.sceneManager import NarratorManager
 
-__all__ = ['MessageManager', 'SceneManager', 'CharacterManager', 'NarratorManager']
+__all__ = ['TimelineManager', 'CharacterManager']

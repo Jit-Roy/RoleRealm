@@ -52,8 +52,7 @@ RoleRealm/
 ├── stories/                # Story arc JSON files
 ├── managers/               # Core system managers
 │   ├── characterManager.py
-│   ├── messageManager.py
-│   ├── sceneManager.py
+│   ├── timelineManager.py  # Unified timeline management (messages + scenes)
 │   ├── storyManager.py
 │   └── turn_manager.py
 ├── chat_logs/              # Saved conversation histories
