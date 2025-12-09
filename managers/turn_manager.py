@@ -14,7 +14,7 @@ from managers.messageManager import MessageManager
 from managers.sceneManager import SceneManager
 from managers.characterManager import CharacterManager
 from managers.storyManager import StoryManager
-from managers.narratorManager import NarratorManager
+from managers.sceneManager import NarratorManager
 from config import Config
 
 

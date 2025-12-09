@@ -9,7 +9,7 @@ import json
 from data_models import CharacterPersona, Character
 from data_models import Character
 from managers.turn_manager import TurnManager
-from managers.narratorManager import NarratorManager
+from managers.sceneManager import NarratorManager
 from config import Config
 from managers.messageManager import MessageManager
 from managers.sceneManager import SceneManager

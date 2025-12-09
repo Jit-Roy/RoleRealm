@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from data_models import Message, MessageHistory
+from config import Config
+from openrouter_client import GenerativeModel
+from helpers.response_parser import parse_json_response
 
 
 class MessageManager:
@@ -14,7 +17,7 @@ class MessageManager:
     
     def __init__(self):
         """Initialize MessageManager."""
-        pass
+        self.model = GenerativeModel(Config.DEFAULT_MODEL)
     
     def create_message(
         self, 
@@ -95,3 +98,58 @@ class MessageManager:
             location = location
         )
     
+    def summarize_conversation(self, message_history: MessageHistory) -> str:
+        """
+        Generate a brief AI-powered summary of the conversation.
+        
+        Args:
+            message_history: MessageHistory instance to summarize
+            
+        Returns:
+            Summary string
+        """
+        if not message_history.messages:
+            return "No conversation to summarize."
+        
+        # Build conversation text for summarization
+        conversation_text = []
+        for msg in message_history.messages:
+            conversation_text.append(f"{msg.speaker}: *{msg.action_description}* {msg.content}")
+        
+        conversation_str = "\n".join(conversation_text)
+        
+        # Build context
+        context_parts = []
+        if message_history.title:
+            context_parts.append(f"Title: {message_history.title}")
+        if message_history.scene_description:
+            context_parts.append(f"Scene: {message_history.scene_description}")
+        if message_history.location:
+            context_parts.append(f"Location: {message_history.location}")
+        
+        context_str = "\n".join(context_parts) if context_parts else ""
+        
+        prompt = f"""You are summarizing a roleplay conversation between characters.
+        {context_str}
+        CONVERSATION:
+        {conversation_str}
+        TASK: Generate a concise summary (2-4 sentences) of this conversation covering:
+        - What the main topics discussed were
+        - Any important decisions or revelations
+        - The overall mood or tone
+        - Key character interactions or conflicts
+
+        OUTPUT FORMAT (strict JSON):
+        {{
+        "summary": "Your 2-4 sentence summary here"
+        }}
+        Keep it brief but capture the essence of what happened."""
+        try:
+            response = self.model.generate_content(prompt, temperature=0.7)
+            summary_data = parse_json_response(response.text)
+            summary = summary_data.get("summary", "Unable to generate summary.")
+            message_history.conversation_summary = summary
+            return summary
+            
+        except Exception as e:
+            raise RuntimeError(f"Failed to generate summary: {e}")
