@@ -68,17 +68,11 @@ class TurnManager:
         quota_exceeded = False
         
         # Get story context if available
-        story_context = None
-        if self.story_manager:
-            story_context = self.story_manager.get_story_context()
-        
-        # Get recent messages from timeline
-        recent_messages = self.timeline_manager.get_recent_messages(self.timeline)
+        story_context = self.story_manager.get_story_context() if self.story_manager else None
         
         for character in self.characters:
             wants_to_speak, priority, reasoning, action_desc, message = self.character_manager.decide_to_speak(
                 character,
-                recent_messages,
                 story_context=story_context
             )
             
@@ -89,11 +83,11 @@ class TurnManager:
             
             if wants_to_speak:
                 decisions.append((character, (wants_to_speak, priority, reasoning, action_desc, message)))
-                print(f"   💭 {character.persona.name}: "
+                print(f"💭 {character.persona.name}: "
                       f"Priority {priority:.2f} - {reasoning}")
             else:
                 # Debug: Show why they don't want to speak
-                print(f"   🤐 {character.persona.name}: {reasoning}")
+                print(f"🤐 {character.persona.name}: {reasoning}")
         
         # Display quota exceeded message if detected
         if quota_exceeded:
@@ -138,9 +132,9 @@ class TurnManager:
         Returns:
             Tuple of (character, action_description, message) for the selected speaker, or None
         """
-        # Check if there are any messages in the timeline
-        recent_messages = self.timeline_manager.get_recent_messages(self.timeline)
-        if not recent_messages:
+        # Check if there are any events in the timeline
+        recent_events = self.timeline_manager.get_recent_events(self.timeline)
+        if not recent_events:
             return None
         
         print("\n🤔 AI characters are thinking...")
@@ -179,37 +173,25 @@ class TurnManager:
         while consecutive_count < max_turns:
             # Check for story events ONLY after multiple AI turns (not immediately)
             # And only when conversation is flowing naturally, not at transition points
-            # Do NOT check for events if player has withdrawn or conversation is ending
             if self.story_manager and consecutive_count >= 2:
-                # Check if player recently withdrew (last message has leaving action)
-                player_withdrawn = False
-                recent_messages = self.timeline_manager.get_recent_messages(self.timeline)
-                if recent_messages:
-                    last_msg = recent_messages[-1]
-                    if last_msg.action_description:
-                        from helpers.withdrawal_detector import WithdrawalDetector
-                        detector = WithdrawalDetector()
-                        player_withdrawn = detector.is_leaving_action(last_msg.action_description)
-                
-                # Only check for events if player hasn't withdrawn
-                if not player_withdrawn:
-                    message_count = len(recent_messages)
-                    event = self.story_manager.check_for_story_event(
-                        silence_duration=consecutive_count,
-                        message_count=message_count,
-                        recent_messages=recent_messages[-3:] if len(recent_messages) >= 3 else recent_messages
+                recent_events = self.timeline_manager.get_recent_events(self.timeline)
+                event_count = len(recent_events)
+                event = self.story_manager.check_for_story_event(
+                    silence_duration=consecutive_count,
+                    message_count=event_count,
+                    recent_messages=recent_events[-3:] if len(recent_events) >= 3 else recent_events
+                )
+                if event:
+                    self.story_manager.display_story_event(event)
+                    # Add event as a scene
+                    current_location = self.timeline_manager.get_current_location(self.timeline)
+                    event_scene = self.timeline_manager.add_scene(
+                        self.timeline,
+                        location=current_location or "Unknown",
+                        description=f"[{event['title']}] {event['description']}"
                     )
-                    if event:
-                        self.story_manager.display_story_event(event)
-                        # Add event as a scene
-                        current_location = self.timeline_manager.get_current_location(self.timeline)
-                        event_scene = self.timeline_manager.add_scene(
-                            self.timeline,
-                            location=current_location or "Unknown",
-                            description=f"[{event['title']}] {event['description']}"
-                        )
-                        # Events interrupt the AI conversation flow
-                        break
+                    # Events interrupt the AI conversation flow
+                    break
             
             # Ask ONE character at a time (sequentially, not in parallel)
             # Note: select_next_speaker() prints its own "thinking" and "no one speaks" messages
@@ -239,17 +221,17 @@ class TurnManager:
             
             responses.append((character, message))
             
-            # Add the message to the timeline
-            message_obj = self.timeline_manager.add_message(
-                self.timeline,
+            # Create and add the message to the timeline
+            message_obj = self.timeline_manager.create_message(
                 speaker=character.persona.name,
                 content=message,
                 action_description=action_desc
             )
+            self.timeline_manager.add_message(self.timeline, message_obj)
             
-            # Broadcast this message to all characters' perceived messages
+            # Broadcast this TimelineEvent to all characters
             # Each character now has this in their own perspective
-            self.character_manager.broadcast_message_to_characters(self.characters, message_obj)
+            self.character_manager.broadcast_event_to_characters(self.characters, message_obj)
             
             # Print with action description in cyan color if available
             print(f"\n💬 {character.persona.name}:", end="")
