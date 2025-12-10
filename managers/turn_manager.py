@@ -265,8 +265,8 @@ class TurnManager:
             last_speaker = character.persona.name
             consecutive_count += 1
             
-            # Small delay for readability and to let next character see the context
-            time.sleep(2)
+            # Small delay for readability - reduced for better performance
+            time.sleep(1)
         
         # Save conversation after AI responses if callback is provided
         if responses and self.save_callback:
@@ -300,7 +300,8 @@ class TurnManager:
             if self.save_callback:
                 self.save_callback()
             
-            time.sleep(2)
+            # Reduced delay for better performance
+            time.sleep(1)
             
         except Exception as e:
             print(f"\nError generating scene event: {e}\n")

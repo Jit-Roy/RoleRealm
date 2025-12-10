@@ -220,7 +220,7 @@ def main():
                 if user_input and user_input.lower() not in ['listen', 'skip', 'next', 'progress', 'info', 'quit', 'exit']:
                     player_messages_count += 1
                 
-                # Handle story advancement command
+                # Check for story advancement command
                 if user_input.lower() in ['next', 'advance', 'continue story']:
                     if story_manager:
                         if can_advance:
@@ -237,8 +237,8 @@ def main():
                                 print("\n" + "="*70)
                                 print("🎉 STORY COMPLETED!")
                                 print("="*70)
-                                # Handle both Story object and dict
-                                story_title = story_arc.title if hasattr(story_arc, 'title') else story_arc.get('title', 'The Story')
+                                # Handle both Story object and dict - optimized
+                                story_title = getattr(story_arc, 'title', story_arc.get('title', 'The Story'))
                                 print(f"\nYou've completed: {story_title}")
                                 print("The adventure concludes here... for now.")
                                 print("="*70 + "\n")

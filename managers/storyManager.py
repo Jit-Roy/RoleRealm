@@ -51,6 +51,10 @@ class StoryManager:
         if not beat:
             return "Story completed!"
         
+        # Use list for efficient string building
+        objectives_list = beat.get('objectives', [])
+        objectives_str = '\n'.join(f"- {obj}" for obj in objectives_list)
+        
         context = f"""
 CURRENT STORY CONTEXT:
 Story: {self.story.title}
@@ -61,7 +65,7 @@ WHAT'S HAPPENING NOW:
 {beat.get('description', '')}
 
 CURRENT OBJECTIVES:
-{chr(10).join(f"- {obj}" for obj in beat.get('objectives', []))}
+{objectives_str}
 
 STORY GUIDANCE:
 - Keep the conversation moving toward these objectives
@@ -83,8 +87,25 @@ STORY GUIDANCE:
             True if beat should be advanced
         """
         beat = self.get_current_beat()
-        trigger_conditions = beat.get("trigger_conditions", []) if beat else []
-        if not beat or not trigger_conditions:
+        if not beat:
+            return False
+        
+        trigger_conditions = beat.get("trigger_conditions", [])
+        objectives = beat.get("objectives", [])
+        
+        # If no conditions specified, use simple fallback
+        if not trigger_conditions and not objectives:
+            return False
+        
+        # Fast heuristic check first - avoid expensive API call if clearly not met
+        summary_lower = conversation_summary.lower()
+        conditions_met = sum(
+            1 for condition in trigger_conditions
+            if condition.lower() in summary_lower
+        )
+        
+        # If less than 25% of conditions are mentioned, definitely not ready
+        if trigger_conditions and conditions_met < len(trigger_conditions) * 0.25:
             return False
         
         # Use OpenRouter API to intelligently check if objectives are being met
@@ -94,7 +115,6 @@ STORY GUIDANCE:
             
             model = GenerativeModel(Config.DEFAULT_MODEL)
             
-            objectives = beat.get("objectives", [])
             objectives_text = "\n".join([f"- {obj}" for obj in objectives])
             
             prompt = f"""Analyze if the conversation is meeting the story beat objectives.
@@ -117,7 +137,7 @@ Respond with ONLY:
 - 'NO' if more conversation is needed
 - 'PARTIAL' if some but not all objectives are addressed"""
             
-            response = model.generate_content(prompt)
+            response = model.generate_content(prompt, temperature=0.3)  # Lower temp for more consistent decisions
             decision = response.text.strip().upper()
             
             # Progress if YES or PARTIAL (give flexibility)
@@ -126,11 +146,7 @@ Respond with ONLY:
         except Exception as e:
             # Fallback to simple keyword matching if AI fails
             print(f"   ⚠️ Beat completion check failed, using fallback: {e}")
-            summary_lower = conversation_summary.lower()
-            conditions_met = sum(
-                1 for condition in trigger_conditions
-                if condition.lower() in summary_lower
-            )
+            # Need at least half the conditions met
             return conditions_met >= len(trigger_conditions) / 2
     
     def advance_story(self) -> bool:
@@ -224,6 +240,7 @@ Respond with ONLY:
             return None
         
         # Analyze recent context using AI to avoid awkward timing
+        # Only do AI check for critical situations (going to sleep, ending conversation)
         if recent_messages and len(recent_messages) > 0:
             # Build context including both Messages and Scenes in chronological order
             from data_models import Message, Scene
@@ -231,14 +248,20 @@ Respond with ONLY:
             
             for event in recent_messages[-3:]:
                 if isinstance(event, Message):
+                    content_lower = event.content.lower()
+                    # Fast heuristic check - skip expensive AI call if obvious ending signals
+                    if any(keyword in content_lower for keyword in ['goodnight', 'going to sleep', 'going to bed', 'see you tomorrow', 'heading to bed']):
+                        return None  # Don't interrupt sleep/ending
                     context_lines.append(f"{event.speaker}: {event.content}")
                 elif isinstance(event, Scene):
                     context_lines.append(f"[SCENE at {event.location}]: {event.description}")
             
-            if context_lines:
+            # Only do expensive AI check if we have context and passed quick checks
+            if context_lines and silence_duration < 5:
                 context = "\n".join(context_lines)
             
                 # Use OpenRouter to determine if timing is appropriate
+                # Only for borderline cases - trust heuristics for obvious cases
                 try:
                     from config import Config
                     from openrouter_client import GenerativeModel

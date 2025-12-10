@@ -85,7 +85,11 @@ class TimelineManager:
         """
         events = timeline.events
         
-        # Filter by type if specified
+        # Early exit if no events
+        if not events:
+            return []
+        
+        # Filter by type if specified - use single pass
         if event_type == "message":
             events = [e for e in events if isinstance(e, Message)]
         elif event_type == "scene":
@@ -93,6 +97,7 @@ class TimelineManager:
         elif event_type == "Action":
             events = [e for e in events if isinstance(e, Action)]
         
+        # Return last n events efficiently
         return events[-n:] if len(events) > n else events
     
     def get_current_location(self, timeline: TimelineHistory) -> Optional[str]:
@@ -175,20 +180,23 @@ class TimelineManager:
             # Get recent events in chronological order
             recent_events = self.get_recent_events(timeline, n=recent_event_count)
 
-            # Build chronological timeline context for LLM
+            # Build chronological timeline context for LLM - use list for efficiency
             timeline_context = []
             for event in recent_events:
                 if isinstance(event, Message):
-                    timeline_context.append(f"{event.speaker}: {event.content[:80]}")
+                    # Truncate content to 80 chars for context efficiency
+                    content = event.content[:80]
+                    timeline_context.append(f"{event.speaker}: {content}")
                 elif isinstance(event, Scene):
                     timeline_context.append(f"[SCENE at {event.location}] {event.description}")
                 elif isinstance(event, Action):
                     timeline_context.append(f"[ACTION] {event.character}: {event.description}")
             
             timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+            participants_str = ', '.join(timeline.participants)
             
             prompt = f"""You are generating a DRAMATIC SCENE EVENT for a Harry Potter roleplay story.
-            - Characters Present: {', '.join(timeline.participants)}
+            - Characters Present: {participants_str}
 
             RECENT TIMELINE (in chronological order):
             {timeline_str}
@@ -350,7 +358,7 @@ class TimelineManager:
         if not timeline.events:
             return "No events to summarize."
         
-        # Build timeline text for summarization
+        # Build timeline text for summarization - use list for efficiency
         timeline_text = []
         for event in timeline.events:
             if isinstance(event, Message):
@@ -362,12 +370,8 @@ class TimelineManager:
         
         timeline_str = "\n".join(timeline_text)
         
-        # Build context
-        context_parts = []
-        if timeline.title:
-            context_parts.append(f"Title: {timeline.title}")
-        
-        context_str = "\n".join(context_parts) if context_parts else ""
+        # Build context efficiently
+        context_str = f"Title: {timeline.title}" if timeline.title else ""
         
         prompt = f"""You are summarizing a roleplay timeline between characters.
         {context_str}

@@ -199,47 +199,46 @@ class RoleplaySystem:
         try:
             from data_models import Message, Scene, Action
             
-            # Manually construct the data structure to ensure proper serialization
-            timeline_data = {
-                "id": self.timeline.id,
-                "title": self.timeline.title,
-                "events": [],
-                "participants": self.timeline.participants,
-                "timeline_summary": self.timeline.timeline_summary,
-                "visible_to_user": self.timeline.visible_to_user
-            }
+            # Pre-allocate list for better performance
+            events_data = []
             
-            # Serialize each event with all its fields
+            # Serialize each event with all its fields in a single pass
             for event in self.timeline.events:
                 if isinstance(event, Message):
-                    event_data = {
+                    events_data.append({
                         "type": "message",
                         "timeline_id": event.timeline_id,
                         "timestamp": event.timestamp.isoformat(),
                         "speaker": event.speaker,
                         "content": event.content,
                         "action_description": event.action_description
-                    }
+                    })
                 elif isinstance(event, Scene):
-                    event_data = {
+                    events_data.append({
                         "type": "scene",
                         "timeline_id": event.timeline_id,
                         "timestamp": event.timestamp.isoformat(),
                         "location": event.location,
                         "description": event.description
-                    }
+                    })
                 elif isinstance(event, Action):
-                    event_data = {
+                    events_data.append({
                         "type": "action",
                         "timeline_id": event.timeline_id,
                         "timestamp": event.timestamp.isoformat(),
                         "character": event.character,
                         "description": event.description
-                    }
-                else:
-                    continue
-                
-                timeline_data["events"].append(event_data)
+                    })
+            
+            # Manually construct the data structure
+            timeline_data = {
+                "id": self.timeline.id,
+                "title": self.timeline.title,
+                "events": events_data,
+                "participants": self.timeline.participants,
+                "timeline_summary": self.timeline.timeline_summary,
+                "visible_to_user": self.timeline.visible_to_user
+            }
             
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(timeline_data, f, indent=2, ensure_ascii=False)

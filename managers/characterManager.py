@@ -89,33 +89,30 @@ class CharacterManager:
     
     def build_persona_context(self, character: Character) -> str:
         """Build the character's personality context including traits, relationships, goals, and knowledge."""
-        relationships_str = "\n".join([
-            f"- {char}: {rel}" 
-            for char, rel in character.persona.relationships.items()
-        ])
+        # Use list for efficient string building
+        parts = [
+            f"You are {character.persona.name}.",
+            "        YOUR PERSONALITY:",
+            f"        - Traits: {', '.join(character.persona.traits)}",
+            f"        - Speaking Style: {character.persona.speaking_style}",
+            f"        - Background: {character.persona.background}",
+            "        YOUR RELATIONSHIPS:"
+        ]
         
-        context = f"""You are {character.persona.name}.
-        YOUR PERSONALITY:
-        - Traits: {', '.join(character.persona.traits)}
-        - Speaking Style: {character.persona.speaking_style}
-        - Background: {character.persona.background}
-        YOUR RELATIONSHIPS:
-        {relationships_str}"""
+        # Add relationships
+        parts.extend(f"        - {char}: {rel}" for char, rel in character.persona.relationships.items())
         
         # Add goals if available
         if character.persona.goals:
-            goals_str = "\n".join([f"- {goal}" for goal in character.persona.goals])
-            context += f"\n\nYOUR GOALS & MOTIVATIONS:\n{goals_str}"
+            parts.append("\n        YOUR GOALS & MOTIVATIONS:")
+            parts.extend(f"        - {goal}" for goal in character.persona.goals)
         
         # Add knowledge base if available
         if character.persona.knowledge_base:
-            knowledge_items = []
-            for key, value in character.persona.knowledge_base.items():
-                knowledge_items.append(f"- {key}: {value}")
-            knowledge_str = "\n".join(knowledge_items)
-            context += f"\n\nYOUR SPECIAL KNOWLEDGE:\n{knowledge_str}"
+            parts.append("\n        YOUR SPECIAL KNOWLEDGE:")
+            parts.extend(f"        - {key}: {value}" for key, value in character.persona.knowledge_base.items())
         
-        return context
+        return "\n".join(parts)
     
     def build_state_context(self, character: Character) -> str:
         """Build the character's current state context including mood, focus, and action."""
@@ -140,28 +137,26 @@ class CharacterManager:
         Returns:
             Formatted memory context string
         """
+        if not character.memory or not character.memory.timeline_memory:
+            return ""
+        
+        events = character.memory.timeline_memory
+        if last_n_messages is not None and len(events) > last_n_messages:
+            events = events[-last_n_messages:]
+        
+        # Pre-allocate list with estimated size for better performance
         context_lines = []
-        if character.memory and character.memory.timeline_memory:
-            events = character.memory.timeline_memory
-            if last_n_messages is not None:
-                events = events[-last_n_messages:]
-            
-            for event in events:
-                if isinstance(event, Message):
-                    if event.speaker == character.persona.name:
-                        # This character's own messages - frame as "You said"
-                        prefix = "You"
-                    else:
-                        prefix = event.speaker
-                    context_lines.append(f"{prefix}: *{event.action_description}* {event.content}")
-                elif isinstance(event, Scene):
-                    context_lines.append(f"[Scene at {event.location}]: {event.description}")
-                elif isinstance(event, Action):
-                    if event.character == character.persona.name:
-                        # This character's own action - frame as "You"
-                        context_lines.append(f"You: *{event.description}*")
-                    else:
-                        context_lines.append(f"{event.character}: *{event.description}*")
+        char_name = character.persona.name
+        
+        for event in events:
+            if isinstance(event, Message):
+                prefix = "You" if event.speaker == char_name else event.speaker
+                context_lines.append(f"{prefix}: *{event.action_description}* {event.content}")
+            elif isinstance(event, Scene):
+                context_lines.append(f"[Scene at {event.location}]: {event.description}")
+            elif isinstance(event, Action):
+                prefix = "You" if event.character == char_name else event.character
+                context_lines.append(f"{prefix}: *{event.description}*")
         
         return "\n".join(context_lines)
     

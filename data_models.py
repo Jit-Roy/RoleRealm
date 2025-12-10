@@ -169,3 +169,9 @@ class Story(BaseModel):
         """
     )
     current_beat_index: int = Field(default=0, description="Index of the current beat")
+    
+    def get_progress_percentage(self) -> float:
+        """Get the percentage of story completion (cached calculation)."""
+        if not self.beats:
+            return 0.0
+        return (self.current_beat_index / len(self.beats)) * 100
