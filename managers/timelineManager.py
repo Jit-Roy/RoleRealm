@@ -241,6 +241,104 @@ class TimelineManager:
         except Exception as e:
             raise RuntimeError(f"Failed to generate scene event: {e}")
         
+    def should_generate_scene(self, timeline: TimelineHistory, recent_event_count: int = 15) -> Optional[dict]:
+        """
+        Use LLM to decide if a scene event should be generated and what it should be.
+        
+        Args:
+            timeline: TimelineHistory instance
+            recent_event_count: Number of recent events to include in context
+            
+        Returns:
+            dict with 'scene_generated' (bool), 'location' (str), 'event_description' (str) if scene should be generated,
+            None if no scene should be generated
+        """
+        recent_events = self.get_recent_events(timeline, n=recent_event_count)
+
+        # Build chronological timeline context for LLM
+        timeline_context = []
+        for event in recent_events:
+            if isinstance(event, Message):
+                timeline_context.append(f"{event.speaker}: {event.content[:80]}")
+            elif isinstance(event, Scene):
+                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
+            elif isinstance(event, Action):
+                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
+        
+        timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+        prompt = f"""You are a narrative AI assistant for a Harry Potter roleplay story.
+        Characters Present: {', '.join(timeline.participants)}
+        RECENT TIMELINE (in chronological order):
+        {timeline_str}
+
+        YOUR TASK:
+        Analyze the recent conversation flow and decide whether a DRAMATIC SCENE EVENT should be generated.
+
+        GENERATE A SCENE EVENT IF:
+        1. **Conversation has stalled** - Multiple silence rounds or repetitive exchanges
+        2. **Natural transition point** - Topic concluded, awkward pause, characters seem stuck
+        3. **Story needs momentum** - Tension is low, nothing interesting happening
+        4. **Environmental interruption would enhance drama** - Perfect moment for something unexpected
+
+        DO NOT GENERATE A SCENE IF:
+        1. **Active conversation** - Characters are engaged and responding naturally
+        2. **Recent scene event** - Already generated one in last 5-10 messages
+        3. **Mid-dialogue** - Someone is in the middle of making an important point
+        4. **Emotional moment** - Characters processing feelings, don't interrupt
+
+        IF YOU DECIDE TO GENERATE A SCENE:
+        Create a DRAMATIC ENVIRONMENTAL EVENT that:
+        - **Interrupts the current state** with something happening in the environment
+        - **Demands character attention** - they MUST notice and react
+        - **Pushes story forward** - reveals clues, creates tension, advances plot
+        - **Is completely different** from previous scene events above
+        - **Is SPECIFIC and VIVID** with sensory details
+
+        EVENT TYPES (choose dynamically based on context):
+        - **Physical**: Wind blows, object falls, door slams, temperature changes, lightning flashes
+        - **Discovery**: Hidden object revealed, clue appears, book falls open, secret passage opens
+        - **Mysterious**: Strange sound, shadow moves, magic activates, whispers heard
+        - **Danger**: Warning sign, threat appears, protective spell triggers, alarm sounds
+        - **Character**: Someone enters, portrait speaks, ghost appears, owl arrives
+
+        OUTPUT FORMAT (strict JSON):
+        If scene should be generated:
+        {{
+            "scene_generated": true,
+            "location": "The location where this event occurs (infer from most recent [SCENE at X] in timeline above)",
+            "event_description": "2-3 sentence vivid description of what happens with sensory details"
+        }}
+
+        If no scene should be generated:
+        {{
+            "scene_generated": false
+        }}
+
+        Decide now based on the timeline above."""
+        
+        try:
+            response = self.model.generate_content(
+                prompt,
+                temperature=0.8,
+                max_tokens=300
+            )
+            
+            scene_data = parse_json_response(response.text)
+            
+            if scene_data.get("scene_generated", False):
+                return {
+                    'scene_generated': True,
+                    'location': scene_data.get('location'),
+                    'event_description': scene_data.get('event_description')
+                }
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"⚠️  Error in scene generation decision: {e}")
+            return None
+    
+        
     # ========= Action Operations ==========
 
     def create_action(

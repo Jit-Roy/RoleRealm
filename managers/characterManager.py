@@ -184,7 +184,7 @@ class CharacterManager:
 
         persona_context = self.build_persona_context(character)
         state_context = self.build_state_context(character)
-        memory_context = self.build_memory_context(character)
+        memory_context = self.build_memory_context(character, last_n_messages=10)
         
         # Add story context if provided
         story_section = ""

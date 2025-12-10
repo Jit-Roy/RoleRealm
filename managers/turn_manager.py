@@ -4,7 +4,7 @@ Handles ONLY turn decision logic - determines who should speak next.
 All timeline operations are delegated to TimelineManager.
 """
 
-from multiprocessing.dummy import Process
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 import time
 from typing import List, Optional, Tuple
@@ -63,7 +63,7 @@ class TurnManager:
     
     def _collect_speaking_decisions(self) -> List[Tuple[Character, Tuple[str, float, str, Optional[str], Optional[str]]]]:
         """
-        Collect response decisions from all AI characters.
+        Collect response decisions from all AI characters using parallel execution.
         
         Returns:
             List of tuples containing (character, decision_tuple) for characters that want to respond (speak or act)
@@ -74,25 +74,40 @@ class TurnManager:
         # Get story context if available
         story_context = self.story_manager.get_story_context() if self.story_manager else None
         
-        for character in self.characters:
-            response_type, priority, reasoning, dialogue, action = self.character_manager.decide_turn_response(
+        # Define worker function for parallel execution
+        def get_character_decision(character):
+            return character, self.character_manager.decide_turn_response(
                 character,
                 story_context=story_context
             )
+        
+        # Execute all character decisions in parallel
+        with ThreadPoolExecutor(max_workers=len(self.characters)) as executor:
+            # Submit all tasks
+            futures = {executor.submit(get_character_decision, char): char for char in self.characters}
             
-            # Check for quota exceeded error
-            if reasoning == "API_QUOTA_EXCEEDED":
-                quota_exceeded = True
-                continue
-            
-            if response_type in ["speak", "act"]:
-                decisions.append((character, (response_type, priority, reasoning, dialogue, action)))
-                emoji = "💭" if response_type == "speak" else "👤"
-                type_label = "Speech" if response_type == "speak" else "Action"
-                print(f"{emoji} {character.persona.name}: Priority {priority:.2f} ({type_label}) - {reasoning}")
-            else:
-                # Debug: Show why they don't want to respond
-                print(f"🤐 {character.persona.name}: {reasoning}")
+            # Process results as they complete
+            for future in as_completed(futures):
+                try:
+                    character, (response_type, priority, reasoning, dialogue, action) = future.result()
+                    
+                    # Check for quota exceeded error
+                    if reasoning == "API_QUOTA_EXCEEDED":
+                        quota_exceeded = True
+                        continue
+                    
+                    if response_type in ["speak", "act"]:
+                        decisions.append((character, (response_type, priority, reasoning, dialogue, action)))
+                        emoji = "💭" if response_type == "speak" else "👤"
+                        type_label = "Speech" if response_type == "speak" else "Action"
+                        print(f"{emoji} {character.persona.name}: Priority {priority:.2f} ({type_label}) - {reasoning}")
+                    else:
+                        # Debug: Show why they don't want to respond
+                        print(f"🤐 {character.persona.name}: {reasoning}")
+                        
+                except Exception as e:
+                    character = futures[future]
+                    print(f"⚠️  Error getting decision from {character.persona.name}: {e}")
         
         if quota_exceeded:
             print("⚠️  API QUOTA EXCEEDED")
@@ -284,6 +299,27 @@ class TurnManager:
             
             # Small delay for readability and to let next character see the context
             time.sleep(2)
+        
+        # After all character responses, check if a scene event should be generated
+        scene_decision = self.timeline_manager.should_generate_scene(self.timeline, recent_event_count=15)
+        if scene_decision:
+            print("\n" + "─"*70)
+            print("🌅 SCENE EVENT")
+            print("─"*70)
+            
+            # Create and add scene event
+            scene = self.timeline_manager.create_scene(
+                location=scene_decision['location'],
+                description=scene_decision['event_description']
+            )
+            self.timeline_manager.add_event(self.timeline, scene)
+            
+            # Broadcast scene to all characters
+            self.character_manager.broadcast_event_to_characters(self.characters, scene)
+            
+            print(f"\n📍 Location: {scene.location}")
+            print(f"{scene.description}\n")
+            print("─"*70)
         
         # Save conversation after AI responses if callback is provided
         if responses and self.save_callback:
