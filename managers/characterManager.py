@@ -49,13 +49,11 @@ class CharacterManager:
         timeline_memory: TimelineEvent
     ) -> None:
         """
-        Update character's memory by adding spoken messages, perceived messages, or internal thoughts.
+        Update character's memory by adding timeline event.
         
         Args:
             character: The Character to update
-            spoken_message: Message to add to character's spoken messages
-            perceived_message: Message to add to character's perceived messages  
-            internal_thought: Thought/observation to add to internal knowledge
+            timeline_memory: The TimelineEvent to add to memory
         """
             
         if timeline_memory is not None:
@@ -280,8 +278,6 @@ class CharacterManager:
         Args:
             character: The Character making the decision
             story_context: Optional story context to guide responses
-            time_since_last_message: Optional seconds since last message (for timing awareness)
-            awkward_silence_threshold: Optional threshold for awkward silence detection
             
         Returns:
             Tuple of (wants_to_speak, priority, reasoning, action_description, message)

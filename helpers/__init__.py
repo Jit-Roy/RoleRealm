@@ -2,6 +2,6 @@
 Helper utilities for the RoleRealm system.
 """
 
-from .withdrawal_detector import WithdrawalDetector
+from .response_parser import parse_json_response
 
-__all__ = ['WithdrawalDetector']
+__all__ = ['parse_json_response']

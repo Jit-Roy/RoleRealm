@@ -18,7 +18,8 @@ class TimelineManager:
     
     def __init__(self):
         """Initialize TimelineManager."""
-        self.model = GenerativeModel(Config.DEFAULT_MODEL)
+        self.model_name = Config.DEFAULT_MODEL
+        self.model = GenerativeModel(self.model_name)
 
     # ========== Timeline Operations ==========
     
@@ -49,16 +50,13 @@ class TimelineManager:
         self,
         timeline: TimelineHistory,
         event: TimelineEvent
-    ) -> TimelineEvent:
+    ) -> None:
         """
         Add an event (Message or Scene) to the timeline.
         
         Args:
             timeline: TimelineHistory instance to add event to
             event: TimelineEvent instance to add (Message or Scene)
-            
-        Returns:
-            The added event
         """
         timeline.events.append(event)
         
@@ -66,8 +64,7 @@ class TimelineManager:
         if isinstance(event, Message):
             if event.speaker not in timeline.participants:
                 timeline.participants.append(event.speaker)
-        
-        return event
+
     
     def get_recent_events(
         self, 
@@ -96,42 +93,6 @@ class TimelineManager:
         
         return events[-n:] if len(events) > n else events
     
-    def get_recent_messages(
-        self, 
-        timeline: TimelineHistory, 
-        n: int = 10
-    ) -> List[Message]:
-        """
-        Get the n most recent messages from timeline.
-        
-        Args:
-            timeline: TimelineHistory instance
-            n: Number of recent messages
-            
-        Returns:
-            List of recent Message objects
-        """
-        messages = [e for e in timeline.events if isinstance(e, Message)]
-        return messages[-n:] if len(messages) > n else messages
-    
-    def get_recent_scenes(
-        self, 
-        timeline: TimelineHistory, 
-        n: int = 5
-    ) -> List[Scene]:
-        """
-        Get the n most recent scenes from timeline.
-        
-        Args:
-            timeline: TimelineHistory instance
-            n: Number of recent scenes
-            
-        Returns:
-            List of recent Scene objects
-        """
-        scenes = [e for e in timeline.events if isinstance(e, Scene)]
-        return scenes[-n:] if len(scenes) > n else scenes
-    
     def get_current_location(self, timeline: TimelineHistory) -> Optional[str]:
         """
         Get the current location from the most recent Scene.
@@ -142,7 +103,7 @@ class TimelineManager:
         Returns:
             Current location string or None
         """
-        scenes = self.get_recent_scenes(timeline, n=1)
+        scenes = self.get_recent_events(timeline,n=1,event_type="scene")
         return scenes[0].location if scenes else None
     
     # ========== Message Operations ==========
@@ -170,26 +131,6 @@ class TimelineManager:
             action_description=action_description
         )
     
-    def add_message(
-        self,
-        timeline: TimelineHistory,
-        message: Message,
-    ) -> Message:
-        """
-        Create and add a message to the timeline in one step.
-        
-        Args:
-            timeline: TimelineHistory instance
-            speaker: Name of the character speaking
-            content: Message content
-            action_description: Physical action or body language
-            
-        Returns:
-            The created and added Message
-        """
-        self.add_event(timeline, message)
-        return message
-    
     # ========== Scene Operations ==========
     
     def create_scene(
@@ -211,25 +152,6 @@ class TimelineManager:
             location=location,
             description=description
         )
-    
-    def add_scene(
-        self,
-        timeline: TimelineHistory,
-        scene: Scene,
-    ) -> Scene:
-        """
-        Create and add a scene to the timeline in one step.
-        
-        Args:
-            timeline: TimelineHistory instance
-            location: Where this scene event takes place
-            description: What happens in this scene event
-            
-        Returns:
-            The created and added Scene
-        """
-        self.add_event(timeline, scene)
-        return scene
     
     def generate_scene_event(
         self,
@@ -311,9 +233,11 @@ class TimelineManager:
             response = self.model.generate_content(prompt, temperature=0.85)
             result = parse_json_response(response.text)
             event_desc = result.get("event_description", "").strip()
-            scene = self.add_scene(timeline, current_location, event_desc)
             
-            return scene
+            return Scene(
+                location=current_location,
+                description=event_desc
+            )
             
         except Exception as e:
             raise RuntimeError(f"Failed to generate scene event: {e}")

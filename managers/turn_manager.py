@@ -83,13 +83,11 @@ class TurnManager:
             
             if wants_to_speak:
                 decisions.append((character, (wants_to_speak, priority, reasoning, action_desc, message)))
-                print(f"💭 {character.persona.name}: "
-                      f"Priority {priority:.2f} - {reasoning}")
+                print(f"💭 {character.persona.name}: Priority {priority:.2f} - {reasoning}")
             else:
                 # Debug: Show why they don't want to speak
                 print(f"🤐 {character.persona.name}: {reasoning}")
         
-        # Display quota exceeded message if detected
         if quota_exceeded:
             print("⚠️  API QUOTA EXCEEDED")
         
@@ -143,7 +141,7 @@ class TurnManager:
         decisions = self._collect_speaking_decisions()
         
         if not decisions:
-            print("   💤 No one wants to speak right now.")
+            print("💤 No one wants to speak right now.")
             return None
         
         # Select the speaker
@@ -171,8 +169,6 @@ class TurnManager:
         last_speaker = None
         
         while consecutive_count < max_turns:
-            # Check for story events ONLY after multiple AI turns (not immediately)
-            # And only when conversation is flowing naturally, not at transition points
             if self.story_manager and consecutive_count >= 2:
                 recent_events = self.timeline_manager.get_recent_events(self.timeline)
                 event_count = len(recent_events)
@@ -183,14 +179,14 @@ class TurnManager:
                 )
                 if event:
                     self.story_manager.display_story_event(event)
-                    # Add event as a scene
                     current_location = self.timeline_manager.get_current_location(self.timeline)
-                    event_scene = self.timeline_manager.add_scene(
+                    self.timeline_manager.add_event(
                         self.timeline,
-                        location=current_location or "Unknown",
-                        description=f"[{event['title']}] {event['description']}"
+                        event=Scene(
+                            location=current_location or "Unknown",
+                            description=f"[{event['title']}] {event['description']}"
+                        )
                     )
-                    # Events interrupt the AI conversation flow
                     break
             
             # Ask ONE character at a time (sequentially, not in parallel)
@@ -227,7 +223,7 @@ class TurnManager:
                 content=message,
                 action_description=action_desc
             )
-            self.timeline_manager.add_message(self.timeline, message_obj)
+            self.timeline_manager.add_event(self.timeline, message_obj)
             
             # Broadcast this TimelineEvent to all characters
             # Each character now has this in their own perspective

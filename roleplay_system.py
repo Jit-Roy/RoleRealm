@@ -162,7 +162,7 @@ class RoleplaySystem:
             content=dialogue,
             action_description=action_desc
         )
-        self.timeline_manager.add_message(self.timeline, message)
+        self.timeline_manager.add_event(self.timeline, message)
         
         # Broadcast player message as a TimelineEvent to all characters
         self.character_manager.broadcast_event_to_characters(self.ai_characters, message)
@@ -310,25 +310,3 @@ have something to say, creating an organic, dynamic storytelling experience!
                 break
             except Exception as e:
                 print(f"\n❌ Error: {str(e)}\n")
-    
-    def get_statistics(self) -> dict:
-        """
-        Get statistics about the current session.
-        
-        Returns:
-            Dictionary containing session statistics
-        """
-        total_messages = len(self.timeline_manager.get_recent_messages(self.timeline, n=1000))
-        return {
-            "player_name": self.player_name,
-            "ai_characters": [char.persona.name for char in self.ai_characters],
-            "total_messages": total_messages,
-            "total_events": len(self.timeline.events),
-            "total_turns": self.turn_manager.turn_count
-        }
-    
-    def __repr__(self) -> str:
-        total_messages = len(self.timeline_manager.get_recent_messages(self.timeline, n=1000))
-        return (f"RoleplaySystem(player='{self.player_name}', "
-                f"characters={len(self.ai_characters)}, "
-                f"messages={total_messages})")
