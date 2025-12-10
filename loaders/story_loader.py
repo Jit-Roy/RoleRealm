@@ -5,11 +5,12 @@ Story loader module for loading story configurations from JSON files.
 import json
 from pathlib import Path
 import uuid
+from typing import Dict
 from data_models import Story
 
 
 class StoryLoader:
-    """Load story configurations from JSON files."""
+    """Load story configurations from JSON files with caching."""
     
     def __init__(self, stories_dir: str = "stories"):
         """
@@ -21,13 +22,17 @@ class StoryLoader:
         self.stories_dir = Path(stories_dir)
         if not self.stories_dir.exists():
             raise ValueError(f"Stories directory not found: {self.stories_dir}")
+        
+        # Cache for loaded stories to avoid repeated file I/O
+        self._story_cache: Dict[str, Story] = {}
     
-    def load_story(self, story_name: str) -> Story:
+    def load_story(self, story_name: str, use_cache: bool = True) -> Story:
         """
         Load a story from a JSON file.
         
         Args:
             story_name: Name of the story file (without .json extension)
+            use_cache: Whether to use cached version if available (default True)
             
         Returns:
             Story instance
@@ -36,8 +41,13 @@ class StoryLoader:
             FileNotFoundError: If story file doesn't exist
             ValueError: If JSON is invalid or missing required fields
         """
+        # Check cache first if enabled
+        cache_key = story_name.lower()
+        if use_cache and cache_key in self._story_cache:
+            return self._story_cache[cache_key]
+        
         # Convert story name to lowercase for file lookup
-        filename = f"{story_name.lower()}.json"
+        filename = f"{cache_key}.json"
         filepath = self.stories_dir / filename
         
         if not filepath.exists():
@@ -83,13 +93,23 @@ class StoryLoader:
             
             story_data["beats"] = processed_beats
             
-            # Create and return Story
-            return Story(**story_data)
+            # Create Story
+            story = Story(**story_data)
+            
+            # Cache the loaded story
+            if use_cache:
+                self._story_cache[cache_key] = story
+            
+            return story
             
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in {filepath}: {e}")
         except Exception as e:
             raise ValueError(f"Error loading story from {filepath}: {e}")
+    
+    def clear_cache(self) -> None:
+        """Clear the story cache."""
+        self._story_cache.clear()
     
     def list_available_stories(self) -> list[str]:
         """

@@ -8,7 +8,9 @@ from pathlib import Path
 import random
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data_models import Story
+from data_models import Story, Message, Scene
+from config import Config
+from openrouter_client import GenerativeModel
 
 
 class StoryManager:
@@ -110,9 +112,6 @@ STORY GUIDANCE:
         
         # Use OpenRouter API to intelligently check if objectives are being met
         try:
-            from config import Config
-            from openrouter_client import GenerativeModel
-            
             model = GenerativeModel(Config.DEFAULT_MODEL)
             
             objectives_text = "\n".join([f"- {obj}" for obj in objectives])
@@ -243,7 +242,6 @@ Respond with ONLY:
         # Only do AI check for critical situations (going to sleep, ending conversation)
         if recent_messages and len(recent_messages) > 0:
             # Build context including both Messages and Scenes in chronological order
-            from data_models import Message, Scene
             context_lines = []
             
             for event in recent_messages[-3:]:
@@ -263,9 +261,6 @@ Respond with ONLY:
                 # Use OpenRouter to determine if timing is appropriate
                 # Only for borderline cases - trust heuristics for obvious cases
                 try:
-                    from config import Config
-                    from openrouter_client import GenerativeModel
-                    
                     model = GenerativeModel(Config.DEFAULT_MODEL)
                     
                     prompt = f"""Analyze this conversation context and determine if NOW is a good time for a dramatic story event to occur.
