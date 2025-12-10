@@ -4,6 +4,7 @@ Handles ONLY turn decision logic - determines who should speak next.
 All timeline operations are delegated to TimelineManager.
 """
 
+from multiprocessing.dummy import Process
 import random
 import time
 from typing import List, Optional, Tuple
@@ -60,12 +61,12 @@ class TurnManager:
         self.turn_count = 0
         self.consecutive_silence_rounds = 0
     
-    def _collect_speaking_decisions(self) -> List[Tuple[Character, Tuple[bool, float, str, Optional[str]]]]:
+    def _collect_speaking_decisions(self) -> List[Tuple[Character, Tuple[str, bool, float, str, Optional[str], Optional[str]]]]:
         """
-        Collect speaking decisions from all AI characters.
+        Collect response decisions from all AI characters.
         
         Returns:
-            List of tuples containing (character, decision_tuple) for characters that want to speak
+            List of tuples containing (character, decision_tuple) for characters that want to respond (speak or act)
         """
         decisions = []
         quota_exceeded = False
@@ -74,7 +75,7 @@ class TurnManager:
         story_context = self.story_manager.get_story_context() if self.story_manager else None
         
         for character in self.characters:
-            wants_to_speak, priority, reasoning, action_desc, message = self.character_manager.decide_to_speak(
+            response_type, wants_to_speak, priority, reasoning, action_desc, message = self.character_manager.decide_to_speak(
                 character,
                 story_context=story_context
             )
@@ -84,11 +85,13 @@ class TurnManager:
                 quota_exceeded = True
                 continue
             
-            if wants_to_speak:
-                decisions.append((character, (wants_to_speak, priority, reasoning, action_desc, message)))
-                print(f"💭 {character.persona.name}: Priority {priority:.2f} - {reasoning}")
+            if response_type in ["speak", "act"]:
+                decisions.append((character, (response_type, wants_to_speak, priority, reasoning, action_desc, message)))
+                emoji = "💭" if response_type == "speak" else "👤"
+                type_label = "Speech" if response_type == "speak" else "Action"
+                print(f"{emoji} {character.persona.name}: Priority {priority:.2f} ({type_label}) - {reasoning}")
             else:
-                # Debug: Show why they don't want to speak
+                # Debug: Show why they don't want to respond
                 print(f"🤐 {character.persona.name}: {reasoning}")
         
         if quota_exceeded:
@@ -98,39 +101,41 @@ class TurnManager:
     
     def _select_speaker_from_decisions(
         self, 
-        decisions: List[Tuple[Character, Tuple[bool, float, str, Optional[str], Optional[str]]]]
-    ) -> Optional[Tuple[Character, Optional[str], str]]:
+        decisions: List[Tuple[Character, Tuple[str, bool, float, str, Optional[str], Optional[str]]]]
+    ) -> Optional[Tuple[Character, str, Optional[str], Optional[str]]]:
         """
-        Select which character should speak based on priorities.
+        Select which character should respond (speak or act) based on priorities.
         
         Args:
             decisions: List of (character, decision_tuple) tuples
             
         Returns:
-            Tuple of (character, action_description, message) or None if no valid speakers
+            Tuple of (character, response_type, action_description, message) or None if no valid responders
         """
         if not decisions:
             return None
         
         # Sort by priority with small random factor for naturalness
         decisions_with_adjusted_priority = [
-            (char, decision_tuple, decision_tuple[1] + random.uniform(-self.priority_randomness, self.priority_randomness))
+            (char, decision_tuple, decision_tuple[2] + random.uniform(-self.priority_randomness, self.priority_randomness))
             for char, decision_tuple in decisions
         ]
         
         decisions_with_adjusted_priority.sort(key=lambda x: x[2], reverse=True)
         
-        # Return the highest priority character with their action and message
+        # Return the highest priority character with their response type, action and message
         selected_character, decision_tuple, _ = decisions_with_adjusted_priority[0]
-        action_desc = decision_tuple[3]  
-        message = decision_tuple[4]  
-        return (selected_character, action_desc, message)
+        response_type = decision_tuple[0]
+        action_desc = decision_tuple[4]  
+        message = decision_tuple[5]  
+        return (selected_character, response_type, action_desc, message)
     
-    def select_next_speaker(self) -> Optional[Tuple[Character, Optional[str], str]]:
+    def select_next_speaker(self) -> Optional[Tuple[Character, str, Optional[str], Optional[str]]]:
         """
-        Select which AI character should speak next.
+        Select which AI character should respond next (speak or act).
         
         Returns:
+            Tuple of (character, response_type, action_description, message) for the selected character, or None
             Tuple of (character, action_description, message) for the selected speaker, or None
         """
         # Check if there are any events in the timeline
@@ -153,8 +158,7 @@ class TurnManager:
         return result
     
     def process_ai_responses(self, max_turns: Optional[int] = None) -> List[Tuple[Character, str]]:
-        """
-        Process AI responses ONE AT A TIME until no one wants to speak or max turns reached.
+        """Process AI responses ONE AT A TIME until no one wants to speak or max turns reached.
         Each character sees the updated conversation including previous AI responses.
         Returns the list of (character, message) tuples for the caller to handle.
         
@@ -162,8 +166,7 @@ class TurnManager:
             max_turns: Maximum number of consecutive AI turns (uses default if None)
             
         Returns:
-            List of (character, message) tuples for AI turns that want to speak
-        """
+            List of (character, message) tuples for AI turns that want to speak """
         if max_turns is None:
             max_turns = self.max_consecutive_ai_turns
         
@@ -209,37 +212,55 @@ class TurnManager:
                 
                 break
             
-            # Reset silence counter when someone speaks
+            # Reset silence counter when someone responds
             self.consecutive_silence_rounds = 0
             
-            character, action_desc, message = result
+            character, response_type, action_desc, message = result
             
-            # Prevent the same character from speaking twice in a row
+            # Prevent the same character from responding twice in a row
             if last_speaker == character.persona.name:
-                print(f"   ⏭️  {character.persona.name} already spoke, giving others a chance...")
+                print(f"   ⏭️  {character.persona.name} already responded, giving others a chance...")
                 break
             
-            responses.append((character, message))
-            
-            # Create and add the message to the timeline
-            message_obj = self.timeline_manager.create_message(
-                speaker=character.persona.name,
-                content=message,
-                action_description=action_desc
-            )
-            self.timeline_manager.add_event(self.timeline, message_obj)
-            
-            # Broadcast this TimelineEvent to all characters
-            # Each character now has this in their own perspective
-            self.character_manager.broadcast_event_to_characters(self.characters, message_obj)
-            
-            # Print with action description in cyan color if available
-            print(f"\n💬 {character.persona.name}:", end="")
-            if action_desc:
-                print(f" {Fore.CYAN}*{action_desc}*{Style.RESET_ALL}")
-                print(f"   \"{message}\"")
-            else:
-                print(f" {message}")
+            # Handle different response types
+            if response_type == "speak":
+                # Create and add the message to the timeline
+                message_obj = self.timeline_manager.create_message(
+                    speaker=character.persona.name,
+                    content=message,
+                    action_description=action_desc or "speaks"
+                )
+                self.timeline_manager.add_event(self.timeline, message_obj)
+                
+                # Broadcast this TimelineEvent to all characters
+                self.character_manager.broadcast_event_to_characters(self.characters, message_obj)
+                
+                # Print with action description in cyan color if available
+                print(f"\n💬 {character.persona.name}:", end="")
+                if action_desc:
+                    print(f" {Fore.CYAN}*{action_desc}*{Style.RESET_ALL}")
+                    print(f"   \"{message}\"")
+                else:
+                    print(f" {message}")
+                
+                responses.append((character, message))
+                
+            elif response_type == "act":
+                # Create and add the action to the timeline
+                from data_models import Action
+                action_obj = self.timeline_manager.create_action(
+                    character=character.persona.name,
+                    description=action_desc or "reacts silently"
+                )
+                self.timeline_manager.add_event(self.timeline, action_obj)
+                
+                # Broadcast this TimelineEvent to all characters
+                self.character_manager.broadcast_event_to_characters(self.characters, action_obj)
+                
+                # Print action without dialogue
+                print(f"\n👤 {character.persona.name}: {Fore.CYAN}*{action_desc}*{Style.RESET_ALL}")
+                
+                responses.append((character, f"[ACTION: {action_desc}]"))
             
             last_speaker = character.persona.name
             consecutive_count += 1

@@ -10,6 +10,7 @@ from config import Config
 from managers.storyManager import StoryManager
 from loaders.character_loader import load_characters
 from loaders.story_loader import load_story
+from data_models import Message, Scene, Action
 
 # Initialize colorama for Windows color support
 init(autoreset=True)
@@ -152,12 +153,14 @@ def main():
             print("\n📜 RECENT CONVERSATION:")
             print("="*70)
             recent_events = system.timeline_manager.get_recent_events(system.timeline, n=5)
-            from data_models import Message, Scene
+            
             for event in recent_events:
                 if isinstance(event, Message):
                     print(f"💬 {event.speaker}: {event.content[:100]}{'...' if len(event.content) > 100 else ''}")
                 elif isinstance(event, Scene):
                     print(f"🎬 [Scene at {event.location}]: {event.description[:80]}{'...' if len(event.description) > 80 else ''}")
+                elif isinstance(event, Action):
+                    print(f"👤 {event.character}: *{event.description[:80]}{'...' if len(event.description) > 80 else ''}*")
             print("="*70)
             print("✨ Ready to continue!\n")
         
@@ -197,7 +200,6 @@ def main():
                     # Check if we can advance story
                     can_advance = False
                     if current_beat and events_in_beat >= current_beat.get("min_messages", 10):
-                        from data_models import Message
                         recent_events = system.timeline_manager.get_recent_events(system.timeline, n=15)
                         recent_messages = [evt for evt in recent_events if isinstance(evt, Message)]
                         summary = " ".join([msg.content for msg in recent_messages])
@@ -309,7 +311,6 @@ def main():
                 print("Please try again or type 'quit' to exit.")
         
         # Display session statistics
-        from data_models import Message
         total_events = len(system.timeline.events)
         total_messages = sum(1 for evt in system.timeline.events if isinstance(evt, Message))
         print("\n" + "="*70)

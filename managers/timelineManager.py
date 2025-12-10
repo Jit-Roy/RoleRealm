@@ -33,7 +33,7 @@ class TimelineManager:
         Create a new timeline history.
         
         Args:
-            title: Optional timeline title (e.g., 'Evening in Common Room')
+            title: Optional timeline title 
             participants: Optional initial participants list
             visible_to_user: Whether user can view this timeline (default True)
             
@@ -174,27 +174,20 @@ class TimelineManager:
         try:
             # Get recent events in chronological order
             recent_events = self.get_recent_events(timeline, n=recent_event_count)
-            
-            # Get current location from most recent scene
-            current_location = "Unknown Location"
-            for event in reversed(recent_events):
-                if isinstance(event, Scene):
-                    current_location = event.location
-                    break
-            
+
             # Build chronological timeline context for LLM
             timeline_context = []
             for event in recent_events:
                 if isinstance(event, Message):
                     timeline_context.append(f"{event.speaker}: {event.content[:80]}")
                 elif isinstance(event, Scene):
-                    timeline_context.append(f"[SCENE] {event.description}")
+                    timeline_context.append(f"[SCENE at {event.location}] {event.description}")
+                elif isinstance(event, Action):
+                    timeline_context.append(f"[ACTION] {event.character}: {event.description}")
             
             timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
             
             prompt = f"""You are generating a DRAMATIC SCENE EVENT for a Harry Potter roleplay story.
-            CURRENT SCENE:
-            - Location: {current_location}
             - Characters Present: {', '.join(timeline.participants)}
 
             RECENT TIMELINE (in chronological order):
@@ -221,23 +214,27 @@ class TimelineManager:
             - Event should naturally lead to new conversation
             - Must be something characters can react to
             - Vary the type of event - don't repeat patterns from the timeline above
+            - Infer the current location from the most recent scene in the timeline above
 
             OUTPUT FORMAT (strict JSON):
             {{
+            "location": "The location where this event occurs (infer from recent scenes)",
             "event_description": "2-3 sentence vivid description of what happens"
             }}
 
             EXAMPLE:
             {{
+            "location": "Hogwarts Library",
             "event_description": "A sudden gust of ice-cold wind tears through the library, extinguishing half the torches. Pages flutter wildly as a single ancient book slides off a high shelf and crashes open on the table between them—landing on a page marked with a glowing symbol."
             }}"""
             
             response = self.model.generate_content(prompt, temperature=0.85)
             result = parse_json_response(response.text)
+            location = result.get("location", "Unknown Location").strip()
             event_desc = result.get("event_description", "").strip()
             
             return Scene(
-                location=current_location,
+                location=location,
                 description=event_desc
             )
             
@@ -285,13 +282,6 @@ class TimelineManager:
             New Action instance
         """
         recent_events = self.get_recent_events(timeline, n=recent_event_count)
-            
-        # Get current location from most recent scene
-        current_location = "Unknown Location"
-        for event in reversed(recent_events):
-            if isinstance(event, Scene):
-                current_location = event.location
-                break
         
         # Build chronological timeline context for LLM
         timeline_context = []
@@ -299,21 +289,19 @@ class TimelineManager:
             if isinstance(event, Message):
                 timeline_context.append(f"{event.speaker}: {event.content[:80]}")
             elif isinstance(event, Scene):
-                timeline_context.append(f"[SCENE] {event.description}")
+                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
             elif isinstance(event, Action):
                 timeline_context.append(f"[ACTION] {event.character}: {event.description}")
         
         timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
         
-        prompt = f"""You are generating a SILENT CHARACTER ACTION for a roleplay story.
-        CURRENT SCENE:
-        - Location: {current_location}
-        - Character Acting: {character_name}
+        prompt = f"""You are {character_name}. You are generating an ACTION for a roleplay story WITHOUT DIALOGUE. This is a silent, visible reaction to what's happening.
         - Other Characters Present: {', '.join([p for p in timeline.participants if p != character_name])}
+
         RECENT TIMELINE (in chronological order):
         {timeline_str}
+
         TASK:
-        Generate a physical action for {character_name} WITHOUT DIALOGUE. This is a silent, visible reaction to what's happening.
         ACTION TYPES:
         - **Emotional reaction**: steps back, leans forward, narrows eyes, clenches fist
         - **Physical movement**: moves to window, picks up object, backs away, approaches
@@ -325,6 +313,7 @@ class TimelineManager:
         - Should be a natural reaction to recent events
         - Keep it concise (1-2 sentences max)
         - Show emotion through body language
+        - Infer the current location from the most recent scene in the timeline above
         OUTPUT FORMAT (strict JSON):
         {{
             "action_description": "Brief description of the physical action"
@@ -377,8 +366,6 @@ class TimelineManager:
         context_parts = []
         if timeline.title:
             context_parts.append(f"Title: {timeline.title}")
-        if timeline.events and isinstance(timeline.events[0], Scene):
-            context_parts.append(f"Initial Scene: {timeline.events[0].description}")
         
         context_str = "\n".join(context_parts) if context_parts else ""
         

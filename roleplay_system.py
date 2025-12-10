@@ -137,7 +137,7 @@ class RoleplaySystem:
             if 'visible_to_user' in data:
                 self.timeline.visible_to_user = data['visible_to_user']
             
-            # Restore events (messages and scenes)
+            # Restore events (messages, scenes, and actions)
             for event_data in data.get('events', []):
                 # Check for explicit type field first (new format)
                 event_type = event_data.get('type')
@@ -161,6 +161,16 @@ class RoleplaySystem:
                         description=event_data['description']
                     )
                     self.timeline.events.append(scene)
+                elif event_type == 'action' or ('character' in event_data and 'description' in event_data):
+                    # This is an Action
+                    from data_models import Action
+                    action = Action(
+                        timeline_id=event_data.get('timeline_id'),
+                        timestamp=datetime.fromisoformat(event_data['timestamp']) if 'timestamp' in event_data else datetime.now(),
+                        character=event_data['character'],
+                        description=event_data['description']
+                    )
+                    self.timeline.events.append(action)
             
             # Broadcast all events to characters so they have the full context
             for event in self.timeline.events:
@@ -187,7 +197,7 @@ class RoleplaySystem:
         filepath = self.chat_storage_dir / filename
         
         try:
-            from data_models import Message, Scene
+            from data_models import Message, Scene, Action
             
             # Manually construct the data structure to ensure proper serialization
             timeline_data = {
@@ -216,6 +226,14 @@ class RoleplaySystem:
                         "timeline_id": event.timeline_id,
                         "timestamp": event.timestamp.isoformat(),
                         "location": event.location,
+                        "description": event.description
+                    }
+                elif isinstance(event, Action):
+                    event_data = {
+                        "type": "action",
+                        "timeline_id": event.timeline_id,
+                        "timestamp": event.timestamp.isoformat(),
+                        "character": event.character,
                         "description": event.description
                     }
                 else:

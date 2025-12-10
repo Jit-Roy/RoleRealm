@@ -5,7 +5,7 @@ import json
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data_models import CharacterPersona, Message, Character, CharacterMemory, CharacterState, TimelineEvent, Scene
+from data_models import CharacterPersona, Message, Character, CharacterMemory, CharacterState, TimelineEvent, Scene, Action
 from config import Config
 from openrouter_client import GenerativeModel
 from helpers.response_parser import parse_json_response
@@ -153,11 +153,15 @@ class CharacterManager:
                         prefix = "You"
                     else:
                         prefix = event.speaker
-                    
                     context_lines.append(f"{prefix}: *{event.action_description}* {event.content}")
-                else:
-                    if isinstance(event, Scene):
-                        context_lines.append(f"[Scene at {event.location}]: {event.description}")
+                elif isinstance(event, Scene):
+                    context_lines.append(f"[Scene at {event.location}]: {event.description}")
+                elif isinstance(event, Action):
+                    if event.character == character.persona.name:
+                        # This character's own action - frame as "You"
+                        context_lines.append(f"You: *{event.description}*")
+                    else:
+                        context_lines.append(f"{event.character}: *{event.description}*")
         
         return "\n".join(context_lines)
     
@@ -192,22 +196,30 @@ class CharacterManager:
         WHAT YOU EXPERIENCED (your perspective):
         {memory_context}
         DECISION:
-        Based on YOUR experiences, YOUR traits, and YOUR current state, decide if you want to respond right now.
-        WHEN YOU SHOULD SPEAK (high priority):
+        Based on YOUR experiences, YOUR traits, and YOUR current state, decide how you want to respond right now.
+        
+        THREE OPTIONS:
+        1. **SPEAK** - Respond with dialogue (and accompanying action)
+        2. **ACT** - React physically/emotionally WITHOUT speaking (silent action)
+        3. **SILENT** - Do nothing, stay quiet
+        
+        WHEN TO SPEAK (high priority):
         1. **Someone greets the group or asks how everyone is doing** - It's natural to respond as friends!
         2. **Someone reveals important/concerning information** - React with your authentic concern!
         3. **You're directly addressed or mentioned** - Respond naturally!
         4. **There's been awkward silence** - Someone should break it!
         5. **The topic is highly relevant to YOU** - Share your unique perspective!
         6. **Someone needs help or support** - Friends respond to friends!
+        
+        WHEN TO ACT (medium priority):
+        - You want to react but words feel forced or unnecessary
+        - Showing emotion through body language is more powerful than speaking
+        - High tension moment where silence + action is more dramatic
+        - You're uncomfortable/unsure and just want to show physical reaction
+        - Someone said something shocking and you need a moment to process
+        - Physical reaction conveys your feeling better than words would
 
-        WHEN TO BE THOUGHTFUL (medium priority):
-        - Is this the natural flow of conversation, or would you be interrupting?
-        - Have you spoken very recently? Let others have a turn too.
-        - Do you have something NEW and VALUABLE to add?
-        - Would your unique perspective enrich the conversation?
-
-        WHEN NOT TO SPEAK (stay quiet):
+        WHEN TO STAY SILENT (stay quiet):
         - You JUST spoke in the last message (let others respond first)
         - Someone else already said exactly what you'd say
         - You've made the same point 2-3+ times already (don't be repetitive!)
@@ -228,16 +240,18 @@ class CharacterManager:
 
         OUTPUT FORMAT (strict JSON):
         {{
-        "wants_to_speak": true or false,
+        "response_type": "speak" or "act" or "silent",
+        "wants_to_speak": true or false (true if response_type is "speak", false otherwise),
         "priority": 0.0 to 1.0 (how urgent/important is your response),
         "reasoning": "brief explanation of your decision",
-        "action_description": "brief narrative of your physical actions/body language (if any)",
-        "message": "your actual dialogue if wants_to_speak is true, otherwise null"
+        "action_description": "physical actions/body language - REQUIRED for 'act' type, optional for 'speak' type",
+        "message": "your actual dialogue if response_type is 'speak', otherwise null"
         }}
 
         IMPORTANT:
-        - Include BOTH action descriptions AND dialogue to make it vivid and immersive
-        - Action description should show body language, gestures, facial expressions, movements
+        - For "speak": Include BOTH action_description AND message
+        - For "act": Only action_description (silent physical reaction), message should be null
+        - For "silent": Both action_description and message should be null
 
         **CRITICAL - ACTION VARIETY RULES (READ THIS CAREFULLY):**
         1. **CHECK THE CONVERSATION ABOVE** - Look at your previous messages. What actions did you ALREADY do?
@@ -270,9 +284,9 @@ class CharacterManager:
         self, 
         character: Character,
         story_context: Optional[str] = None
-    ) -> Tuple[bool, float, str, Optional[str], Optional[str]]:
+    ) -> Tuple[str, bool, float, str, Optional[str], Optional[str]]:
         """
-        Decide whether this character should speak using THEIR perspective and parameters.
+        Decide whether this character should speak, act silently, or stay silent.
         Each character uses different generation settings for unique voices.
         
         Args:
@@ -280,7 +294,13 @@ class CharacterManager:
             story_context: Optional story context to guide responses
             
         Returns:
-            Tuple of (wants_to_speak, priority, reasoning, action_description, message)
+            Tuple of (response_type, wants_to_speak, priority, reasoning, action_description, message)
+            - response_type: "speak", "act", or "silent"
+            - wants_to_speak: True if response_type is "speak", False otherwise
+            - priority: 0.0 to 1.0
+            - reasoning: Explanation of decision
+            - action_description: Physical action (required for "act", optional for "speak")
+            - message: Dialogue (only for "speak", None otherwise)
         """
         
         try:
@@ -298,8 +318,12 @@ class CharacterManager:
             # Parse JSON response
             decision_data = parse_json_response(response.text)
             
+            response_type = decision_data.get("response_type", "silent").lower()
+            wants_to_speak = response_type == "speak"
+            
             return (
-                decision_data.get("wants_to_speak", False),
+                response_type,
+                wants_to_speak,
                 decision_data.get("priority", 0.0),
                 decision_data.get("reasoning", "No reasoning provided"),
                 decision_data.get("action_description", None),
