@@ -38,7 +38,7 @@ class GenerativeModel:
         
         Args:
             prompt: The text prompt
-            **kwargs: Additional parameters (temperature, max_tokens, etc.)
+            **kwargs: Additional parameters (temperature, max_tokens, top_p, frequency_penalty, etc.)
             
         Returns:
             Response object with .text attribute
@@ -46,6 +46,8 @@ class GenerativeModel:
         try:
             temperature = kwargs.get('temperature', Config.MODEL_TEMPERATURE)
             max_tokens = kwargs.get('max_tokens', Config.MAX_TOKENS)
+            top_p = kwargs.get('top_p', 1.0)
+            frequency_penalty = kwargs.get('frequency_penalty', 0.0)
             
             response = self._client.chat.completions.create(
                 model=self.model_name,
@@ -53,7 +55,9 @@ class GenerativeModel:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=temperature,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                top_p=top_p,
+                frequency_penalty=frequency_penalty
             )
 
             class Response:

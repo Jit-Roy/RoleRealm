@@ -260,6 +260,13 @@ class TurnManager:
             
             print(f"\n{scene.description}\n")
             print("─"*70)
+            
+            # Add scene to timeline
+            self.timeline_manager.add_event(self.timeline, scene)
+            
+            # Broadcast scene event to all characters so they're aware of it
+            self.character_manager.broadcast_event_to_characters(self.characters, scene)
+            
             time.sleep(2)
             
         except Exception as e:

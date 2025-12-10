@@ -1,0 +1,21 @@
+{
+  "id": "cc41a885-f716-4c1d-9250-465f2b4e1b0f",
+  "title": "Group Roleplay Session",
+  "events": [
+    {
+      "timeline_id": "f4cbd6a0-8f89-4eaa-a5ca-ca2a8cf1f172",
+      "timestamp": "2025-12-10 07:00:00.221461"
+    },
+    {
+      "timeline_id": "6d19f141-92f1-4f04-9c94-a2ba423b2511",
+      "timestamp": "2025-12-10 07:00:00.285379"
+    }
+  ],
+  "participants": [
+    "Harry",
+    "Hermione",
+    "Ron"
+  ],
+  "timeline_summary": null,
+  "visible_to_user": true
+}

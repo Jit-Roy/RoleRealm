@@ -51,9 +51,13 @@ class RoleplaySystem:
         self.player_name = player_name
         self.model_name = model_name or Config.DEFAULT_MODEL
         
-        # Create AI characters
+        # Import character manager early to create characters properly
+        from managers.characterManager import CharacterManager
+        temp_character_manager = CharacterManager()
+        
+        # Create AI characters with proper memory and state initialization
         self.ai_characters = [
-            Character(persona=persona)
+            temp_character_manager.create_character(persona=persona)
             for persona in characters
         ]
         

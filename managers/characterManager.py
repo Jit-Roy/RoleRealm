@@ -37,9 +37,9 @@ class CharacterManager:
             New Character instance
         """
         if memory is None:
-            memory = CharacterMemory(character_name=persona.name)
+            memory = CharacterMemory(name=persona.name)
         if state is None:
-            state = CharacterState(character_name=persona.name)
+            state = CharacterState(name=persona.name)
         
         return Character(persona=persona, memory=memory, state=state)
     
@@ -290,9 +290,9 @@ class CharacterManager:
             # Generate with character's unique settings
             response = self.model.generate_content(
                 prompt, 
-                character.persona.temperature, 
-                character.persona.top_p, 
-                character.persona.frequency_penalty
+                temperature=character.persona.temperature, 
+                top_p=character.persona.top_p, 
+                frequency_penalty=character.persona.frequency_penalty
             )
             
             # Parse JSON response
