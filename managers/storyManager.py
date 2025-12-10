@@ -16,6 +16,14 @@ from openrouter_client import GenerativeModel
 class StoryManager:
     """Manager for story arc progression and narrative guidance."""
     
+    # Configuration constants
+    MIN_CONDITION_THRESHOLD = 0.25  # Minimum % of conditions that must be met before AI check
+    MIN_SILENCE_FOR_AI_CHECK = 5  # Minimum silence duration before doing expensive AI timing check
+    ENDING_KEYWORDS = [
+        'goodnight', 'going to sleep', 'going to bed', 
+        'see you tomorrow', 'heading to bed'
+    ]
+    
     def __init__(self, story: Optional[Story] = None):
         """
         Initialize StoryManager.
@@ -107,7 +115,7 @@ STORY GUIDANCE:
         )
         
         # If less than 25% of conditions are mentioned, definitely not ready
-        if trigger_conditions and conditions_met < len(trigger_conditions) * 0.25:
+        if trigger_conditions and conditions_met < len(trigger_conditions) * self.MIN_CONDITION_THRESHOLD:
             return False
         
         # Use OpenRouter API to intelligently check if objectives are being met
@@ -248,14 +256,14 @@ Respond with ONLY:
                 if isinstance(event, Message):
                     content_lower = event.content.lower()
                     # Fast heuristic check - skip expensive AI call if obvious ending signals
-                    if any(keyword in content_lower for keyword in ['goodnight', 'going to sleep', 'going to bed', 'see you tomorrow', 'heading to bed']):
+                    if any(keyword in content_lower for keyword in self.ENDING_KEYWORDS):
                         return None  # Don't interrupt sleep/ending
                     context_lines.append(f"{event.speaker}: {event.content}")
                 elif isinstance(event, Scene):
                     context_lines.append(f"[SCENE at {event.location}]: {event.description}")
             
             # Only do expensive AI check if we have context and passed quick checks
-            if context_lines and silence_duration < 5:
+            if context_lines and silence_duration < self.MIN_SILENCE_FOR_AI_CHECK:
                 context = "\n".join(context_lines)
             
                 # Use OpenRouter to determine if timing is appropriate
