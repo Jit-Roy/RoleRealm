@@ -10,7 +10,7 @@ import time
 from typing import List, Optional, Tuple
 from colorama import Fore, Style
 
-from data_models import Message, TimelineHistory, Character, Scene
+from data_models import Message, TimelineHistory, Character, Scene, CharacterEntry, CharacterExit
 from managers.timelineManager import TimelineManager
 from managers.characterManager import CharacterManager
 from managers.storyManager import StoryManager
@@ -83,7 +83,6 @@ class TurnManager:
         
         # Execute all character decisions in parallel
         with ThreadPoolExecutor(max_workers=len(self.characters)) as executor:
-            # Submit all tasks
             futures = {executor.submit(get_character_decision, char): char for char in self.characters}
             
             # Process results as they complete
@@ -102,15 +101,14 @@ class TurnManager:
                         type_label = "Speech" if response_type == "speak" else "Action"
                         print(f"{emoji} {character.persona.name}: Priority {priority:.2f} ({type_label}) - {reasoning}")
                     else:
-                        # Debug: Show why they don't want to respond
                         print(f"🤐 {character.persona.name}: {reasoning}")
                         
                 except Exception as e:
                     character = futures[future]
-                    print(f"⚠️  Error getting decision from {character.persona.name}: {e}")
+                    print(f"⚠️Error getting decision from {character.persona.name}: {e}")
         
         if quota_exceeded:
-            print("⚠️  API QUOTA EXCEEDED")
+            print("⚠️API QUOTA EXCEEDED")
         
         return decisions
     
@@ -139,13 +137,86 @@ class TurnManager:
         ]
         
         decisions_with_adjusted_priority.sort(key=lambda x: x[2], reverse=True)
-        
-        # Return the highest priority character with their response type and dialouge
         selected_character, decision_tuple, _ = decisions_with_adjusted_priority[0]
         response_type = decision_tuple[0]
-        dialogue = decision_tuple[3]  # spoken words (for speak) or None (for act)
-        action = decision_tuple[4]  # body_language (for speak) or physical action (for act)
+        dialogue = decision_tuple[3]  
+        action = decision_tuple[4]
         return (selected_character, response_type, dialogue, action)
+    
+    def _process_meta_narrative_decisions(self) -> None:
+        """
+        Process meta-narrative decisions sequentially.
+        
+        Workflow:
+        1. Check if scene transition should happen
+        2. Check for character entries and exits (ONE combined API call)
+        
+        All decisions use full timeline context (not filtered by character memory).
+        """
+        # Step 1: Check for scene transition
+        scene_decision = self.timeline_manager.should_generate_scene(self.timeline, recent_event_count=15)
+        if scene_decision:
+            scene = self.timeline_manager.create_scene(
+                location=scene_decision['location'],
+                description=scene_decision['event_description']
+            )
+            self.timeline_manager.add_event(self.timeline, scene)
+            
+            # Broadcast scene to currently active characters only
+            active_characters = [c for c in self.characters if c.persona.name in self.timeline.current_participants]
+            self.character_manager.broadcast_event_to_characters(active_characters, scene)
+            
+            print(f"\n📍 Location: {scene.location}")
+            print(f"{scene.description}\n")
+            
+            time.sleep(1)
+        
+        # Step 2: Check for character entries AND exits 
+        timeline_context = self.timeline_manager.get_timeline_context(self.timeline, recent_event_count=15)
+        current_location = self.timeline_manager.get_current_location(self.timeline)
+        all_character_names = [c.persona.name for c in self.characters]
+        
+        entries, exits = self.character_manager.decide_character_movements(
+            timeline_context=timeline_context,
+            all_characters=all_character_names,
+            current_participants=self.timeline.current_participants,
+            current_location=current_location or "Unknown"
+        )
+        
+        # Process all character movements (entries and exits) in a single loop
+        for movement_info, is_entry in [(info, True) for info in entries] + [(info, False) for info in exits]:
+            character_name = movement_info.get('character')
+            description = movement_info.get('description')
+            
+            if not character_name or not description:
+                continue
+            
+            # Find the character object
+            character = next((c for c in self.characters if c.persona.name == character_name), None)
+            if not character:
+                continue
+            
+            action = "entering" if is_entry else "leaving"
+            print(f"\n👋 {character_name} is {action}...")
+            
+            # Create appropriate event
+            if is_entry:
+                event = CharacterEntry(character=character_name, description=description)
+            else: 
+                event = CharacterExit(character=character_name, description=description)
+            
+            self.timeline_manager.add_event(self.timeline, event)
+            
+            # Broadcast to currently active characters
+            active_characters = [c for c in self.characters if c.persona.name in self.timeline.current_participants]
+            self.character_manager.broadcast_event_to_characters(active_characters, event)
+            
+            # For entries, also add to the entering character's memory
+            if is_entry:
+                self.character_manager.broadcast_event_to_characters([character], event)
+            
+            print(f"   {Fore.CYAN}{description}{Style.RESET_ALL}")
+            time.sleep(1)
     
     def select_next_speaker(self) -> Optional[Tuple[Character, str, Optional[str], Optional[str]]]:
         """
@@ -163,8 +234,14 @@ class TurnManager:
         
         print("\n🤔 AI characters are thinking...")
         
-        # Collect decisions from all characters
+        # Collect decisions from all currently active characters
+        active_characters = [c for c in self.characters if c.persona.name in self.timeline.current_participants]
+        
+        # Temporarily update self.characters for _collect_speaking_decisions
+        original_characters = self.characters
+        self.characters = active_characters
         decisions = self._collect_speaking_decisions()
+        self.characters = original_characters
         
         if not decisions:
             print("💤 No one wants to speak right now.")
@@ -187,6 +264,10 @@ class TurnManager:
             List of (character, message) tuples for AI turns that want to speak """
         if max_turns is None:
             max_turns = self.max_consecutive_ai_turns
+        
+        # STEP 1: Process meta-narrative decisions FIRST
+        # This happens before character decisions to set the stage
+        self._process_meta_narrative_decisions()
         
         responses = []
         consecutive_count = 0
@@ -301,28 +382,6 @@ class TurnManager:
             
             # Small delay for readability and to let next character see the context
             time.sleep(2)
-        
-        # After all character responses, check if a scene event should be generated
-        scene_decision = self.timeline_manager.should_generate_scene(self.timeline, recent_event_count=15)
-        if scene_decision:
-            print("\n" + "─"*70)
-            print("🌅 SCENE EVENT")
-            print("─"*70)
-            
-            # Create and add scene event
-            scene = self.timeline_manager.create_scene(
-                location=scene_decision['location'],
-                description=scene_decision['event_description']
-            )
-            self.timeline_manager.add_event(self.timeline, scene)
-            
-            # Broadcast scene to currently active characters only
-            active_characters = [c for c in self.characters if c.persona.name in self.timeline.current_participants]
-            self.character_manager.broadcast_event_to_characters(active_characters, scene)
-            
-            print(f"\n📍 Location: {scene.location}")
-            print(f"{scene.description}\n")
-            print("─"*70)
         
         # Save conversation after AI responses if callback is provided
         if responses and self.save_callback:

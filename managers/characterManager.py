@@ -382,3 +382,68 @@ class CharacterManager:
         """
         for character in characters:
             self.update_character_memory(character, event=event)
+    
+    def decide_character_movements(
+        self,
+        timeline_context: str,
+        all_characters: List[str],
+        current_participants: List[str],
+        current_location: str
+    ) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+        """
+        Make ONE API call to decide both character entries AND exits.
+        
+        Args:
+            timeline_context: Full timeline history context
+            all_characters: List of all character names in the story
+            current_participants: List of characters currently present
+            current_location: Current scene location
+            
+        Returns:
+            Tuple of (entries, exits):
+            - entries: List of dicts with keys: 'character', 'description'
+            - exits: List of dicts with keys: 'character', 'description'
+        """
+        absent_characters = [c for c in all_characters if c not in current_participants]
+        
+        prompt = f"""You are the meta-narrator for this story. Based on the full timeline context, decide which characters (if any) should enter or exit the current scene.
+        CURRENT SCENE:
+        Location: {current_location}
+        Currently Present: {', '.join(current_participants) if current_participants else 'None'}
+        Absent Characters: {', '.join(absent_characters) if absent_characters else 'None'}
+        RECENT TIMELINE CONTEXT:
+        {timeline_context}
+        YOUR TASK:
+        Decide which characters should naturally enter or exit RIGHT NOW based on:
+        - Story flow and narrative logic
+        - Character motivations and goals
+        - Natural cause-and-effect from recent events
+        - Whether the scene/location would attract or repel them
+        RESPONSE FORMAT (JSON):
+        {{
+            "entries": [
+                {{
+                    "character": "character_name",
+                    "description": "Brief description of how they enter (1-2 sentences)"
+                }}
+            ],
+            "exits": [
+                {{
+                    "character": "character_name",
+                    "description": "Brief description of how they leave (1-2 sentences)"
+                }}
+            ]
+        }}
+        If no movements should happen, return: {{"entries": [], "exits": []}}
+        Remember: Only include movements that make narrative sense RIGHT NOW."""
+        try:
+            response = self.model.generate_text(prompt)
+            result = parse_json_response(response)
+            entries = result.get("entries", [])
+            exits = result.get("exits", [])
+
+            return entries, exits
+            
+        except Exception as e:
+            print(f"Error deciding character movements: {e}")
+            return [], []
