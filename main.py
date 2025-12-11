@@ -156,7 +156,7 @@ def main():
             
             for event in recent_events:
                 if isinstance(event, Message):
-                    print(f"💬 {event.speaker}: {event.content[:100]}{'...' if len(event.content) > 100 else ''}")
+                    print(f"💬 {event.character}: {event.dialouge[:100]}{'...' if len(event.dialouge) > 100 else ''}")
                 elif isinstance(event, Scene):
                     print(f"🎬 [Scene at {event.location}]: {event.description[:80]}{'...' if len(event.description) > 80 else ''}")
                 elif isinstance(event, Action):
@@ -202,7 +202,7 @@ def main():
                     if current_beat and events_in_beat >= current_beat.get("min_messages", 10):
                         recent_events = system.timeline_manager.get_recent_events(system.timeline, n=15)
                         recent_messages = [evt for evt in recent_events if isinstance(evt, Message)]
-                        summary = " ".join([msg.content for msg in recent_messages])
+                        summary = " ".join([msg.dialouge for msg in recent_messages])
                         if story_manager.check_beat_completion(summary):
                             can_advance = True
                 else:

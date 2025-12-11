@@ -231,7 +231,7 @@ Respond with ONLY:
             
             for event in recent_messages[-3:]:
                 if isinstance(event, Message):
-                    context_lines.append(f"{event.speaker}: {event.content}")
+                    context_lines.append(f"{event.character}: {event.dialouge}")
                 elif isinstance(event, Scene):
                     context_lines.append(f"[SCENE at {event.location}]: {event.description}")
             

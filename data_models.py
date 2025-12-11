@@ -25,8 +25,8 @@ class TimelineEvent(BaseModel):
 class Message(TimelineEvent):
     """Represents a single message in the conversation."""
 
-    speaker: str = Field(..., description="Name of the character speaking")
-    content: str = Field(..., description="Content of the message")
+    character: str = Field(..., description="Name of the character speaking")
+    dialouge: str = Field(..., description="dialouge of the message")
     action_description: str = Field(..., description="Physical action or body language accompanying the message")
 
 
@@ -46,6 +46,26 @@ class Action(TimelineEvent):
     character: str = Field(..., description="Name of the character taking the action")
     description: str = Field(..., description="Details about the action taken")
 
+
+class CharacterEntry(TimelineEvent):
+    """
+    Represents a character entering the scene.
+    Used to track when characters join conversations and what they witness.
+    """
+    
+    character: str = Field(..., description="Name of the character entering")
+    description: str = Field(..., description="Description of how the character enters (e.g., 'Harry walks in looking exhausted')")
+
+
+class CharacterExit(TimelineEvent):
+    """
+    Represents a character leaving the scene.
+    Used to track when characters depart and stop witnessing events.
+    """
+    
+    character: str = Field(..., description="Name of the character leaving")
+    description: str = Field(..., description="Description of how the character leaves (e.g., 'Hermione hurries off to the library')")
+    
 
 class TimelineHistory(BaseModel):
     """Represents the complete conversation history."""

@@ -148,12 +148,12 @@ class CharacterManager:
             
             for event in events:
                 if isinstance(event, Message):
-                    if event.speaker == character.persona.name:
+                    if event.character == character.persona.name:
                         # This character's own messages - frame as "You said"
                         prefix = "You"
                     else:
-                        prefix = event.speaker
-                    context_lines.append(f"{prefix}: *{event.action_description}* {event.content}")
+                        prefix = event.character
+                    context_lines.append(f"{prefix}: *{event.action_description}* {event.dialouge}")
                 elif isinstance(event, Scene):
                     context_lines.append(f"[Scene at {event.location}]: {event.description}")
                 elif isinstance(event, Action):
@@ -310,12 +310,12 @@ class CharacterManager:
             story_context: Optional story context to guide responses
             
         Returns:
-            Tuple of (response_type, priority, reasoning, content1, content2)
+            Tuple of (response_type, priority, reasoning, dialouge, action)
             - response_type: "speak", "act", or "silent"
             - priority: 0.0 to 1.0
             - reasoning: Explanation of decision
-            - content1: For "speak" = dialogue, For "act" = action, For "silent" = None
-            - content2: For "speak" = body_language (optional), For "act"/"silent" = None
+            - dialouge: For "speak" = dialogue, For "act" = action, For "silent" = None
+            - action: For "speak" = body_language, For "act"/"silent" = None
         """
         
         try:
@@ -337,7 +337,7 @@ class CharacterManager:
             priority = decision_data.get("priority", 0.0)
             reasoning = decision_data.get("reasoning", "No reasoning provided")
             
-            # Extract content based on response type
+            # Extract dialouge based on response type
             if response_type == "speak":
                 dialogue = decision_data.get("dialogue", None) 
                 action = decision_data.get("action", None)  

@@ -62,8 +62,8 @@ class TimelineManager:
         
         # If it's a message, update participants
         if isinstance(event, Message):
-            if event.speaker not in timeline.participants:
-                timeline.participants.append(event.speaker)
+            if event.character not in timeline.participants:
+                timeline.participants.append(event.character)
 
     
     def get_recent_events(
@@ -112,24 +112,24 @@ class TimelineManager:
     
     def create_message(
         self, 
-        speaker: str, 
-        content: str, 
+        character: str, 
+        dialouge: str, 
         action_description: str
     ) -> Message:
         """
         Create a new message instance.
         
         Args:
-            speaker: Name of the character speaking
-            content: Message content
+            character: Name of the character speaking
+            dialouge: Message dialouge
             action_description: Physical action or body language
             
         Returns:
             New Message instance
         """
         return Message(
-            speaker=speaker, 
-            content=content, 
+            character=character, 
+            dialouge=dialouge, 
             action_description=action_description
         )
     
@@ -179,7 +179,7 @@ class TimelineManager:
             timeline_context = []
             for event in recent_events:
                 if isinstance(event, Message):
-                    timeline_context.append(f"{event.speaker}: {event.content[:80]}")
+                    timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
                 elif isinstance(event, Scene):
                     timeline_context.append(f"[SCENE at {event.location}] {event.description}")
                 elif isinstance(event, Action):
@@ -259,7 +259,7 @@ class TimelineManager:
         timeline_context = []
         for event in recent_events:
             if isinstance(event, Message):
-                timeline_context.append(f"{event.speaker}: {event.content[:80]}")
+                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
             elif isinstance(event, Scene):
                 timeline_context.append(f"[SCENE at {event.location}] {event.description}")
             elif isinstance(event, Action):
@@ -385,7 +385,7 @@ class TimelineManager:
         timeline_context = []
         for event in recent_events:
             if isinstance(event, Message):
-                timeline_context.append(f"{event.speaker}: {event.content[:80]}")
+                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
             elif isinstance(event, Scene):
                 timeline_context.append(f"[SCENE at {event.location}] {event.description}")
             elif isinstance(event, Action):
@@ -452,7 +452,7 @@ class TimelineManager:
         timeline_text = []
         for event in timeline.events:
             if isinstance(event, Message):
-                timeline_text.append(f"{event.speaker}: *{event.action_description}* {event.content}")
+                timeline_text.append(f"{event.character}: *{event.action_description}* {event.dialouge}")
             elif isinstance(event, Scene):
                 timeline_text.append(f"[SCENE at {event.location}] {event.description}")
             elif isinstance(event, Action):

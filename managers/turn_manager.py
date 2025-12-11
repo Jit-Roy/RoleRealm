@@ -140,7 +140,7 @@ class TurnManager:
         
         decisions_with_adjusted_priority.sort(key=lambda x: x[2], reverse=True)
         
-        # Return the highest priority character with their response type and content
+        # Return the highest priority character with their response type and dialouge
         selected_character, decision_tuple, _ = decisions_with_adjusted_priority[0]
         response_type = decision_tuple[0]
         dialogue = decision_tuple[3]  # spoken words (for speak) or None (for act)
@@ -240,7 +240,7 @@ class TurnManager:
                 print(f"   ⏭️  {character.persona.name} already responded, giving others a chance...")
                 continue  # Continue to next iteration instead of breaking, let other characters respond
             
-            # Validate that we have content before processing
+            # Validate that we have dialouge before processing
             if response_type == "speak" and not dialogue:
                 print(f"   ⚠️  {character.persona.name} chose to speak but provided no dialogue, skipping...")
                 continue
@@ -255,8 +255,8 @@ class TurnManager:
                 
                 # Create and add the message to the timeline
                 message_obj = self.timeline_manager.create_message(
-                    speaker=character.persona.name,
-                    content=dialogue,
+                    character=character.persona.name,
+                    dialouge=dialogue,
                     action_description=body_language or "speaks"
                 )
                 self.timeline_manager.add_event(self.timeline, message_obj)

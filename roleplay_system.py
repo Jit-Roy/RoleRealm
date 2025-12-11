@@ -142,13 +142,13 @@ class RoleplaySystem:
                 # Check for explicit type field first (new format)
                 event_type = event_data.get('type')
                 
-                if event_type == 'message' or ('speaker' in event_data and 'content' in event_data):
+                if event_type == 'message' or ('character' in event_data and 'dialouge' in event_data):
                     # This is a Message
                     message = Message(
                         timeline_id=event_data.get('timeline_id'),
                         timestamp=datetime.fromisoformat(event_data['timestamp']) if 'timestamp' in event_data else datetime.now(),
-                        speaker=event_data['speaker'],
-                        content=event_data['content'],
+                        character=event_data['character'],
+                        dialouge=event_data['dialouge'],
                         action_description=event_data['action_description']
                     )
                     self.timeline.events.append(message)
@@ -216,8 +216,8 @@ class RoleplaySystem:
                         "type": "message",
                         "timeline_id": event.timeline_id,
                         "timestamp": event.timestamp.isoformat(),
-                        "speaker": event.speaker,
-                        "content": event.content,
+                        "character": event.character,
+                        "dialouge": event.dialouge,
                         "action_description": event.action_description
                     }
                 elif isinstance(event, Scene):
@@ -266,8 +266,8 @@ class RoleplaySystem:
         
         # Create and add message to timeline
         message = self.timeline_manager.create_message(
-            speaker=self.player_name,
-            content=dialogue,
+            character=self.player_name,
+            dialouge=dialogue,
             action_description=action_desc
         )
         self.timeline_manager.add_event(self.timeline, message)
