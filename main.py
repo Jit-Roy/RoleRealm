@@ -194,6 +194,7 @@ def main():
                             # Add as a scene event
                             current_location = system.timeline_manager.get_current_location(system.timeline)
                             scene = system.timeline_manager.create_scene(
+                                scene_type="environmental",
                                 location=current_location or SCENE_LOCATION,
                                 description=f"[{event['title']}] {event['description']}"
                             )
@@ -289,6 +290,7 @@ def main():
                         display_initial_scene(SCENE_TITLE, SCENE_LOCATION, SCENE_DESCRIPTION)
                         # Re-add initial scene to timeline
                         initial_scene = system.timeline_manager.create_scene(
+                            scene_type="environmental",
                             location=SCENE_LOCATION,
                             description=SCENE_DESCRIPTION
                         )

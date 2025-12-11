@@ -78,6 +78,7 @@ class RoleplaySystem:
             initial_scene_description = f"The conversation begins in the {initial_location}."
         
         initial_scene = temp_timeline_manager.create_scene(
+            scene_type="environmental",
             location=initial_location,
             description=initial_scene_description
         )
@@ -157,6 +158,7 @@ class RoleplaySystem:
                     scene = Scene(
                         timeline_id=event_data.get('timeline_id'),
                         timestamp=datetime.fromisoformat(event_data['timestamp']) if 'timestamp' in event_data else datetime.now(),
+                        scene_type=event_data.get('scene_type', 'environmental'),
                         location=event_data['location'],
                         description=event_data['description']
                     )

@@ -191,6 +191,7 @@ class TimelineManager:
     
     def create_scene(
         self,
+        scene_type: str,
         location: str,
         description: str
     ) -> Scene:
@@ -198,6 +199,7 @@ class TimelineManager:
         Create a new scene event.
         
         Args:
+            scene_type: Type of scene - 'transition' or 'environmental'
             location: Where this scene event takes place
             description: What happens in this scene event
             
@@ -205,70 +207,112 @@ class TimelineManager:
             New Scene instance
         """
         return Scene(
+            scene_type=scene_type,
             location=location,
             description=description
         )
     
     def generate_scene_event(
         self,
+        scene_type: str,
         timeline: TimelineHistory,
         recent_event_count: int = 15
     ) -> Scene:
         """
-        Generate a dramatic scene event when conversation stalls.
-        Called EVERY time there's a silence round.
+        Generate a scene event based on specified type.
         
         Args:
+            scene_type: Type of scene to generate - 'transition' or 'environmental' (required)
             timeline: TimelineHistory instance
             recent_event_count: How many recent events to consider for context
             
         Returns:
-            The newly created and added Scene
+            The newly created Scene
         """
         try:
-            # Get recent events in chronological order
             timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
+            current_location = self.get_current_location(timeline)
             
-            prompt = f"""You are generating a DRAMATIC SCENE EVENT for a Harry Potter roleplay story.
-            - Characters Present: {', '.join(timeline.participants)}
+            if scene_type == "transition":
+                prompt = f"""You are generating a SCENE TRANSITION for a Harry Potter roleplay story.
+                Current Location: {current_location or 'Unknown'}
+                Characters Present: {', '.join(timeline.current_participants)}
 
-            RECENT TIMELINE (in chronological order):
-            {timeline_str}
+                RECENT TIMELINE (in chronological order):
+                {timeline_str}
 
-            SITUATION:
-            The conversation has stalled. Silence has fallen. You need to generate a DRAMATIC ENVIRONMENTAL EVENT that:
+                YOUR TASK:
+                Generate a location transition scene. Characters need to move to a new location based on context.
 
-            1. **Interrupts the silence** with something happening in the environment
-            2. **Demands character attention** - they MUST notice and react
-            3. **Pushes story forward** - reveals clues, creates new tension, or advances plot
-            4. **Is completely different** from previous scene events above
+                GUIDELINES:
+                1. **Identify destination** - Where should they go based on recent conversation?
+                2. **Describe journey** - Brief description of traveling from current to new location
+                3. **Arrival description** - Vivid details of the new location they arrive at
+                4. **Set the atmosphere** - Make the new location feel real and immersive
 
-            EVENT TYPES (choose dynamically):
-            - **Physical**: Wind blows, object falls, door slams, temperature changes
-            - **Discovery**: Hidden object revealed, clue appears, book falls open
-            - **Mysterious**: Strange sound, shadow moves, magic activates
-            - **Danger**: Warning sign, threat appears, protective spell triggers
-            - **Character**: Someone enters, portrait speaks, ghost appears
+                CRITICAL RULES:
+                - Choose a NEW location different from {current_location or 'Unknown'}
+                - 2-3 sentences: journey + arrival + atmospheric details
+                - Make it specific to Harry Potter world
+                - Include sensory details (what they see/hear/feel)
+                - Naturally flow from recent events
 
-            CRITICAL RULES:
-            - Make it SPECIFIC and VIVID (not generic)
-            - Include sensory details (what they see/hear/feel)
-            - Event should naturally lead to new conversation
-            - Must be something characters can react to
-            - Vary the type of event - don't repeat patterns from the timeline above
-            - Infer the current location from the most recent scene in the timeline above
+                OUTPUT FORMAT (strict JSON):
+                {{
+                "location": "The NEW location they arrive at",
+                "event_description": "2-3 sentences describing journey and arrival at new location"
+                }}
 
-            OUTPUT FORMAT (strict JSON):
-            {{
-            "location": "The location where this event occurs (infer from recent scenes)",
-            "event_description": "2-3 sentence vivid description of what happens"
-            }}
+                EXAMPLE:
+                {{
+                "location": "Dumbledore's Office",
+                "event_description": "The three friends climbed the spiral staircase, the stone steps moving beneath their feet. They arrived at the heavy oak door, which swung open to reveal Dumbledore's circular office lined with sleeping portraits and silver instruments, while Fawkes the phoenix watched them from his golden perch."
+                }}"""
+            
+            else:  # environmental
+                prompt = f"""You are generating an ENVIRONMENTAL SCENE EVENT for a Harry Potter roleplay story.
+                Current Location: {current_location or 'Unknown'}
+                Characters Present: {', '.join(timeline.current_participants)}
 
-            EXAMPLE:
-            {{
-            "location": "Hogwarts Library",
-            "event_description": "A sudden gust of ice-cold wind tears through the library, extinguishing half the torches. Pages flutter wildly as a single ancient book slides off a high shelf and crashes open on the table between them—landing on a page marked with a glowing symbol."
-            }}"""
+                RECENT TIMELINE (in chronological order):
+                {timeline_str}
+
+                SITUATION:
+                Generate a dramatic environmental event that interrupts the current moment.
+
+                YOUR TASK:
+                Create an event that happens in the CURRENT location that:
+                1. **Interrupts the moment** - Something happens in the environment
+                2. **Demands attention** - Characters MUST notice and can react
+                3. **Pushes story forward** - Creates tension, reveals something, or advances plot
+                4. **Is different** from previous scene events above
+
+                EVENT TYPES (choose dynamically):
+                - **Physical**: Wind blows, object falls, door slams, temperature changes
+                - **Discovery**: Hidden object revealed, clue appears, book falls open
+                - **Mysterious**: Strange sound, shadow moves, magic activates
+                - **Danger**: Warning sign, threat appears, protective spell triggers
+                - **Character-related**: Portrait speaks, ghost appears, owl arrives (NOT character entry)
+
+                CRITICAL RULES:
+                - Event happens in CURRENT location: {current_location or 'Unknown'}
+                - Do NOT change location
+                - Make it SPECIFIC and VIVID (not generic)
+                - Include sensory details (what they see/hear/feel)
+                - Must be something characters can react to
+                - Vary event type - don't repeat patterns from timeline
+
+                OUTPUT FORMAT (strict JSON):
+                {{
+                "location": "{current_location or 'Unknown'}",
+                "event_description": "2-3 sentence vivid description of what happens"
+                }}
+
+                EXAMPLE:
+                {{
+                "location": "Hogwarts Library",
+                "event_description": "A sudden gust of ice-cold wind tears through the library, extinguishing half the torches. Pages flutter wildly as a single ancient book slides off a high shelf and crashes open on the table between them—landing on a page marked with a glowing symbol."
+                }}"""
             
             response = self.model.generate_content(prompt, temperature=0.85)
             result = parse_json_response(response.text)
@@ -276,67 +320,81 @@ class TimelineManager:
             event_desc = result.get("event_description", "").strip()
             
             return Scene(
+                scene_type=scene_type,
                 location=location,
                 description=event_desc
             )
             
         except Exception as e:
-            raise RuntimeError(f"Failed to generate scene event: {e}")
+            raise RuntimeError(f"Failed to generate {scene_type} scene event: {e}")
         
     def should_generate_scene(self, timeline: TimelineHistory, recent_event_count: int = 15) -> Optional[dict]:
         """
-        Use LLM to decide if a scene event should be generated and what it should be.
+        Use LLM to decide if a scene event should be generated and what type it should be.
         
         Args:
             timeline: TimelineHistory instance
             recent_event_count: Number of recent events to include in context
             
         Returns:
-            dict with 'scene_generated' (bool), 'location' (str), 'event_description' (str) if scene should be generated,
+            dict with 'scene_generated' (bool), 'scene_type' (str), 'location' (str), 'event_description' (str) if scene should be generated,
             None if no scene should be generated
         """
         timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
+        current_location = self.get_current_location(timeline)
+        
         prompt = f"""You are a narrative AI assistant for a Harry Potter roleplay story.
-        Characters Present: {', '.join(timeline.participants)}
+        Current Location: {current_location or 'Unknown'}
+        Characters Present: {', '.join(timeline.current_participants)}
+        
         RECENT TIMELINE (in chronological order):
         {timeline_str}
 
         YOUR TASK:
-        Analyze the recent conversation flow and decide whether a DRAMATIC SCENE EVENT should be generated.
+        Analyze the recent conversation flow and decide whether a SCENE EVENT should be generated.
+
+        SCENE EVENT TYPES:
+        
+        1. **TRANSITION** - Change of location (time/place transition):
+           - Characters decide to go somewhere
+           - Narrative needs to move forward to a new location
+           - Story progression requires a location change
+           Example: "The three friends left the common room and walked through the castle corridors, arriving at Dumbledore's office. The circular room was lined with portraits, and Fawkes sat on his golden perch."
+        
+        2. **ENVIRONMENTAL** - Something happens in current location:
+           - Physical events (wind, objects falling, door slams)
+           - Discoveries (hidden objects, clues)
+           - Mysterious occurrences (sounds, shadows, magic)
+           - Interruptions (someone enters, owl arrives)
+           Example: "A sudden gust of wind tore through the library, extinguishing the torches and causing an ancient book to fall open on the table."
 
         GENERATE A SCENE EVENT IF:
-        1. **Conversation has stalled** - Multiple silence rounds or repetitive exchanges
-        2. **Natural transition point** - Topic concluded, awkward pause, characters seem stuck
-        3. **Story needs momentum** - Tension is low, nothing interesting happening
-        4. **Environmental interruption would enhance drama** - Perfect moment for something unexpected
+        1. **Location change needed** - Characters expressed intent to go somewhere
+        2. **Conversation has stalled** - Multiple silence rounds or repetitive exchanges
+        3. **Natural transition point** - Topic concluded, awkward pause
+        4. **Story needs momentum** - Environmental interruption would enhance drama
 
         DO NOT GENERATE A SCENE IF:
         1. **Active conversation** - Characters are engaged and responding naturally
         2. **Recent scene event** - Already generated one in last 5-10 messages
         3. **Mid-dialogue** - Someone is in the middle of making an important point
-        4. **Emotional moment** - Characters processing feelings, don't interrupt
-
-        IF YOU DECIDE TO GENERATE A SCENE:
-        Create a DRAMATIC ENVIRONMENTAL EVENT that:
-        - **Interrupts the current state** with something happening in the environment
-        - **Demands character attention** - they MUST notice and react
-        - **Pushes story forward** - reveals clues, creates tension, advances plot
-        - **Is completely different** from previous scene events above
-        - **Is SPECIFIC and VIVID** with sensory details
-
-        EVENT TYPES (choose dynamically based on context):
-        - **Physical**: Wind blows, object falls, door slams, temperature changes, lightning flashes
-        - **Discovery**: Hidden object revealed, clue appears, book falls open, secret passage opens
-        - **Mysterious**: Strange sound, shadow moves, magic activates, whispers heard
-        - **Danger**: Warning sign, threat appears, protective spell triggers, alarm sounds
-        - **Character**: Someone enters, portrait speaks, ghost appears, owl arrives
+        4. **Emotional moment** - Characters processing feelings
 
         OUTPUT FORMAT (strict JSON):
-        If scene should be generated:
+        If TRANSITION scene should be generated:
         {{
             "scene_generated": true,
-            "location": "The location where this event occurs (infer from most recent [SCENE at X] in timeline above)",
-            "event_description": "2-3 sentence vivid description of what happens with sensory details"
+            "scene_type": "transition",
+            "location": "The NEW location they're moving to",
+            "event_description": "2-3 sentences describing the journey and arrival at new location with vivid details"
+        }}
+        
+        If ENVIRONMENTAL scene should be generated:
+        {{
+            "scene_generated": true,
+            "scene_type": "environmental",
+            "location": "{current_location or 'Unknown'}",
+            "event_description": "2-3 sentences describing what happens in current location with sensory details"
         }}
 
         If no scene should be generated:

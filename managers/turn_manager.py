@@ -156,7 +156,9 @@ class TurnManager:
         # Step 1: Check for scene transition
         scene_decision = self.timeline_manager.should_generate_scene(self.timeline, recent_event_count=15)
         if scene_decision:
+            scene_type = scene_decision.get('scene_type', 'environmental')
             scene = self.timeline_manager.create_scene(
+                scene_type=scene_type,
                 location=scene_decision['location'],
                 description=scene_decision['event_description']
             )
@@ -166,7 +168,13 @@ class TurnManager:
             active_characters = [c for c in self.characters if c.persona.name in self.timeline.current_participants]
             self.character_manager.broadcast_event_to_characters(active_characters, scene)
             
-            print(f"\n📍 Location: {scene.location}")
+            # Display scene based on type
+            if scene_type == 'transition':
+                print(f"\n🚶 SCENE TRANSITION")
+                print(f"📍 New Location: {scene.location}")
+            else:
+                print(f"\n🌅 ENVIRONMENTAL SCENE")
+                print(f"📍 Location: {scene.location}")
             print(f"{scene.description}\n")
             
             time.sleep(1)
@@ -288,6 +296,7 @@ class TurnManager:
                     self.timeline_manager.add_event(
                         self.timeline,
                         event=Scene(
+                            scene_type="environmental",
                             location=current_location or "Unknown",
                             description=f"[{event['title']}] {event['description']}"
                         )
@@ -390,14 +399,15 @@ class TurnManager:
         return responses
     
     def _generate_scene_event(self) -> None:
-        """Generate a dramatic scene event when conversation stalls."""
+        """Generate a dramatic environmental scene event when conversation stalls."""
         print("\n" + "─"*70)
-        print("🌅 SCENE EVENT")
+        print("🌅 ENVIRONMENTAL SCENE EVENT")
         print("─"*70)
         
-        # Generate scene event
+        # Generate environmental scene event (fallback for silence)
         try:
             scene = self.timeline_manager.generate_scene_event(
+                scene_type="environmental",
                 timeline=self.timeline,
                 recent_event_count=15
             )

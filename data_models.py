@@ -36,6 +36,7 @@ class Scene(TimelineEvent):
     Part of the timeline alongside Message objects.
     """
     
+    scene_type: str = Field(..., description="Type of scene: 'transition' or 'environmental'")
     location: str = Field(..., description="Where this scene event takes place")
     description: str = Field(..., description="What happens in this scene event")
 
