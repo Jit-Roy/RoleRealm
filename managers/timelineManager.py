@@ -7,7 +7,7 @@ from typing import List, Optional
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from data_models import Message, Scene, Action, TimelineHistory, TimelineEvent
+from data_models import Message, Scene, Action, TimelineHistory, TimelineEvent, CharacterEntry, CharacterExit
 from config import Config
 from openrouter_client import GenerativeModel
 from helpers.response_parser import parse_json_response
@@ -184,6 +184,10 @@ class TimelineManager:
                     timeline_context.append(f"[SCENE at {event.location}] {event.description}")
                 elif isinstance(event, Action):
                     timeline_context.append(f"[ACTION] {event.character}: {event.description}")
+                elif isinstance(event, CharacterEntry):
+                    timeline_context.append(f"[ENTERED] {event.character}: {event.description}")
+                elif isinstance(event, CharacterExit):
+                    timeline_context.append(f"[LEFT] {event.character}: {event.description}")
             
             timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
             
@@ -457,6 +461,10 @@ class TimelineManager:
                 timeline_text.append(f"[SCENE at {event.location}] {event.description}")
             elif isinstance(event, Action):
                 timeline_text.append(f"[ACTION] {event.character}: *{event.description}*")
+            elif isinstance(event, CharacterEntry):
+                timeline_text.append(f"[ENTERED] {event.character}: {event.description}")
+            elif isinstance(event, CharacterExit):
+                timeline_text.append(f"[LEFT] {event.character}: {event.description}")
         
         timeline_str = "\n".join(timeline_text)
         

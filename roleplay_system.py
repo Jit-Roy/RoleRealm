@@ -171,6 +171,27 @@ class RoleplaySystem:
                         description=event_data['description']
                     )
                     self.timeline.events.append(action)
+                elif event_type == 'character_entry':
+                    # This is a CharacterEntry
+                    from data_models import CharacterEntry
+                    entry = CharacterEntry(
+                        timeline_id=event_data.get('timeline_id'),
+                        timestamp=datetime.fromisoformat(event_data['timestamp']) if 'timestamp' in event_data else datetime.now(),
+                        character=event_data['character'],
+                        description=event_data['description']
+                    )
+                    self.timeline.events.append(entry)
+                elif event_type == 'character_exit':
+                    # This is a CharacterExit
+                    from data_models import CharacterExit
+                    exit_event = CharacterExit(
+                        timeline_id=event_data.get('timeline_id'),
+                        timestamp=datetime.fromisoformat(event_data['timestamp']) if 'timestamp' in event_data else datetime.now(),
+                        character=event_data['character'],
+                        description=event_data['description'],
+                        reason=event_data.get('reason')
+                    )
+                    self.timeline.events.append(exit_event)
             
             # Broadcast all events to characters so they have the full context
             for event in self.timeline.events:
@@ -235,6 +256,25 @@ class RoleplaySystem:
                         "timestamp": event.timestamp.isoformat(),
                         "character": event.character,
                         "description": event.description
+                    }
+                elif isinstance(event, CharacterEntry):
+                    from data_models import CharacterEntry
+                    event_data = {
+                        "type": "character_entry",
+                        "timeline_id": event.timeline_id,
+                        "timestamp": event.timestamp.isoformat(),
+                        "character": event.character,
+                        "description": event.description
+                    }
+                elif isinstance(event, CharacterExit):
+                    from data_models import CharacterExit
+                    event_data = {
+                        "type": "character_exit",
+                        "timeline_id": event.timeline_id,
+                        "timestamp": event.timestamp.isoformat(),
+                        "character": event.character,
+                        "description": event.description,
+                        "reason": event.reason if hasattr(event, 'reason') else None
                     }
                 else:
                     continue

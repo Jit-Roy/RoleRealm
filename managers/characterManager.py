@@ -5,7 +5,7 @@ import json
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from data_models import CharacterPersona, Message, Character, CharacterMemory, CharacterState, TimelineEvent, Scene, Action
+from data_models import CharacterPersona, Message, Character, CharacterMemory, CharacterState, TimelineEvent, Scene, Action, CharacterEntry, CharacterExit
 from config import Config
 from openrouter_client import GenerativeModel
 from helpers.response_parser import parse_json_response
@@ -162,6 +162,16 @@ class CharacterManager:
                         context_lines.append(f"You: *{event.description}*")
                     else:
                         context_lines.append(f"{event.character}: *{event.description}*")
+                elif isinstance(event, CharacterEntry):
+                    if event.character == character.persona.name:
+                        context_lines.append(f"[You entered]: {event.description}")
+                    else:
+                        context_lines.append(f"[{event.character} entered]: {event.description}")
+                elif isinstance(event, CharacterExit):
+                    if event.character == character.persona.name:
+                        context_lines.append(f"[You left]: {event.description}")
+                    else:
+                        context_lines.append(f"[{event.character} left]: {event.description}")
         
         return "\n".join(context_lines)
     

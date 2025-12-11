@@ -10,7 +10,7 @@ from config import Config
 from managers.storyManager import StoryManager
 from loaders.character_loader import load_characters
 from loaders.story_loader import load_story
-from data_models import Message, Scene, Action
+from data_models import Message, Scene, Action, CharacterEntry, CharacterExit
 
 # Initialize colorama for Windows color support
 init(autoreset=True)
@@ -161,6 +161,10 @@ def main():
                     print(f"🎬 [Scene at {event.location}]: {event.description[:80]}{'...' if len(event.description) > 80 else ''}")
                 elif isinstance(event, Action):
                     print(f"👤 {event.character}: *{event.description[:80]}{'...' if len(event.description) > 80 else ''}*")
+                elif isinstance(event, CharacterEntry):
+                    print(f"🚪 → {event.character} entered: {event.description[:80]}{'...' if len(event.description) > 80 else ''}")
+                elif isinstance(event, CharacterExit):
+                    print(f"🚪 ← {event.character} left: {event.description[:80]}{'...' if len(event.description) > 80 else ''}")
             print("="*70)
             print("✨ Ready to continue!\n")
         
