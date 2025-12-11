@@ -89,7 +89,7 @@ class TimelineManager:
     def get_recent_events(
         self, 
         timeline: TimelineHistory, 
-        n: int = 10,
+        n: Optional[int] = 10,
         event_type: Optional[str] = None
     ) -> List[TimelineEvent]:
         """
@@ -97,7 +97,7 @@ class TimelineManager:
         
         Args:
             timeline: TimelineHistory instance to retrieve from
-            n: Number of recent events
+            n: Number of recent events, or None to get all events
             event_type: Optional filter - "message", "scene", "action", "entry", "exit" or None for all
             
         Returns:
@@ -117,6 +117,9 @@ class TimelineManager:
         elif event_type == "exit":
             events = [e for e in events if isinstance(e, CharacterExit)]
         
+        # Return all events if n is None, otherwise return last n events
+        if n is None:
+            return events
         return events[-n:] if len(events) > n else events
     
     def get_current_location(self, timeline: TimelineHistory) -> Optional[str]:
@@ -131,6 +134,32 @@ class TimelineManager:
         """
         scenes = self.get_recent_events(timeline,n=1,event_type="scene")
         return scenes[0].location if scenes else None
+    
+    def get_timeline_context(self, timeline: TimelineHistory, recent_event_count: int = 10) -> str:
+        """
+        Build a formatted string representation of timeline events.
+        
+        Args:
+            events: List of TimelineEvent instances to format
+            
+        Returns:
+            Formatted timeline string with one event per line
+        """
+        timeline_context = []
+        events = self.get_recent_events(timeline, n=recent_event_count)
+        for event in events:
+            if isinstance(event, Message):
+                timeline_context.append(f"{event.character}: {event.dialouge}")
+            elif isinstance(event, Scene):
+                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
+            elif isinstance(event, Action):
+                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
+            elif isinstance(event, CharacterEntry):
+                timeline_context.append(f"[ENTERED] {event.character}: {event.description}")
+            elif isinstance(event, CharacterExit):
+                timeline_context.append(f"[LEFT] {event.character}: {event.description}")
+        
+        return "\n".join(timeline_context) if timeline_context else "No recent activity"
     
     # ========== Message Operations ==========
     
@@ -197,23 +226,7 @@ class TimelineManager:
         """
         try:
             # Get recent events in chronological order
-            recent_events = self.get_recent_events(timeline, n=recent_event_count)
-
-            # Build chronological timeline context for LLM
-            timeline_context = []
-            for event in recent_events:
-                if isinstance(event, Message):
-                    timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
-                elif isinstance(event, Scene):
-                    timeline_context.append(f"[SCENE at {event.location}] {event.description}")
-                elif isinstance(event, Action):
-                    timeline_context.append(f"[ACTION] {event.character}: {event.description}")
-                elif isinstance(event, CharacterEntry):
-                    timeline_context.append(f"[ENTERED] {event.character}: {event.description}")
-                elif isinstance(event, CharacterExit):
-                    timeline_context.append(f"[LEFT] {event.character}: {event.description}")
-            
-            timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+            timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
             
             prompt = f"""You are generating a DRAMATIC SCENE EVENT for a Harry Potter roleplay story.
             - Characters Present: {', '.join(timeline.participants)}
@@ -281,19 +294,7 @@ class TimelineManager:
             dict with 'scene_generated' (bool), 'location' (str), 'event_description' (str) if scene should be generated,
             None if no scene should be generated
         """
-        recent_events = self.get_recent_events(timeline, n=recent_event_count)
-
-        # Build chronological timeline context for LLM
-        timeline_context = []
-        for event in recent_events:
-            if isinstance(event, Message):
-                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
-            elif isinstance(event, Scene):
-                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
-            elif isinstance(event, Action):
-                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
-        
-        timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+        timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
         prompt = f"""You are a narrative AI assistant for a Harry Potter roleplay story.
         Characters Present: {', '.join(timeline.participants)}
         RECENT TIMELINE (in chronological order):
@@ -407,19 +408,7 @@ class TimelineManager:
         Returns:
             New Action instance
         """
-        recent_events = self.get_recent_events(timeline, n=recent_event_count)
-        
-        # Build chronological timeline context for LLM
-        timeline_context = []
-        for event in recent_events:
-            if isinstance(event, Message):
-                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
-            elif isinstance(event, Scene):
-                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
-            elif isinstance(event, Action):
-                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
-        
-        timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+        timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
         
         prompt = f"""You are {character_name}. You are generating an ACTION for a roleplay story WITHOUT DIALOGUE. This is a silent, visible reaction to what's happening.
         - Other Characters Present: {', '.join([p for p in timeline.participants if p != character_name])}
@@ -522,23 +511,7 @@ class TimelineManager:
         Returns:
             New CharacterEntry instance
         """
-        recent_events = self.get_recent_events(timeline, n=recent_event_count)
-        
-        # Build chronological timeline context for LLM
-        timeline_context = []
-        for event in recent_events:
-            if isinstance(event, Message):
-                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
-            elif isinstance(event, Scene):
-                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
-            elif isinstance(event, Action):
-                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
-            elif isinstance(event, CharacterEntry):
-                timeline_context.append(f"[ENTERED] {event.character}: {event.description}")
-            elif isinstance(event, CharacterExit):
-                timeline_context.append(f"[LEFT] {event.character}: {event.description}")
-        
-        timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+        timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
         current_location = self.get_current_location(timeline)
         
         prompt = f"""You are generating a CHARACTER ENTRY EVENT for {character_name} in a roleplay story.
@@ -604,23 +577,7 @@ class TimelineManager:
         Returns:
             New CharacterExit instance
         """
-        recent_events = self.get_recent_events(timeline, n=recent_event_count)
-        
-        # Build chronological timeline context for LLM
-        timeline_context = []
-        for event in recent_events:
-            if isinstance(event, Message):
-                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
-            elif isinstance(event, Scene):
-                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
-            elif isinstance(event, Action):
-                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
-            elif isinstance(event, CharacterEntry):
-                timeline_context.append(f"[ENTERED] {event.character}: {event.description}")
-            elif isinstance(event, CharacterExit):
-                timeline_context.append(f"[LEFT] {event.character}: {event.description}")
-        
-        timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+        timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
         current_location = self.get_current_location(timeline)
         
         prompt = f"""You are generating a CHARACTER EXIT EVENT for {character_name} in a roleplay story.
@@ -687,23 +644,7 @@ class TimelineManager:
             dict with 'entry_generated' (bool) and 'entry_description' (str) if entry should happen,
             None if character should not enter
         """
-        recent_events = self.get_recent_events(timeline, n=recent_event_count)
-        
-        # Build chronological timeline context for LLM
-        timeline_context = []
-        for event in recent_events:
-            if isinstance(event, Message):
-                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
-            elif isinstance(event, Scene):
-                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
-            elif isinstance(event, Action):
-                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
-            elif isinstance(event, CharacterEntry):
-                timeline_context.append(f"[ENTERED] {event.character}: {event.description}")
-            elif isinstance(event, CharacterExit):
-                timeline_context.append(f"[LEFT] {event.character}: {event.description}")
-        
-        timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+        timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
         current_location = self.get_current_location(timeline)
         
         prompt = f"""You are a narrative AI assistant for a roleplay story.
@@ -791,23 +732,7 @@ class TimelineManager:
             dict with 'exit_generated' (bool) and 'exit_description' (str) if exit should happen,
             None if character should stay
         """
-        recent_events = self.get_recent_events(timeline, n=recent_event_count)
-        
-        # Build chronological timeline context for LLM
-        timeline_context = []
-        for event in recent_events:
-            if isinstance(event, Message):
-                timeline_context.append(f"{event.character}: {event.dialouge[:80]}")
-            elif isinstance(event, Scene):
-                timeline_context.append(f"[SCENE at {event.location}] {event.description}")
-            elif isinstance(event, Action):
-                timeline_context.append(f"[ACTION] {event.character}: {event.description}")
-            elif isinstance(event, CharacterEntry):
-                timeline_context.append(f"[ENTERED] {event.character}: {event.description}")
-            elif isinstance(event, CharacterExit):
-                timeline_context.append(f"[LEFT] {event.character}: {event.description}")
-        
-        timeline_str = "\n".join(timeline_context) if timeline_context else "No recent activity"
+        timeline_str = self.get_timeline_context(timeline, recent_event_count=recent_event_count)
         current_location = self.get_current_location(timeline)
         
         prompt = f"""You are a narrative AI assistant for a roleplay story.
@@ -892,21 +817,7 @@ class TimelineManager:
         if not timeline.events:
             return "No events to summarize."
         
-        # Build timeline text for summarization
-        timeline_text = []
-        for event in timeline.events:
-            if isinstance(event, Message):
-                timeline_text.append(f"{event.character}: *{event.action_description}* {event.dialouge}")
-            elif isinstance(event, Scene):
-                timeline_text.append(f"[SCENE at {event.location}] {event.description}")
-            elif isinstance(event, Action):
-                timeline_text.append(f"[ACTION] {event.character}: *{event.description}*")
-            elif isinstance(event, CharacterEntry):
-                timeline_text.append(f"[ENTERED] {event.character}: {event.description}")
-            elif isinstance(event, CharacterExit):
-                timeline_text.append(f"[LEFT] {event.character}: {event.description}")
-        
-        timeline_str = "\n".join(timeline_text)
+        timeline_str = self.get_timeline_context(timeline, recent_event_count=None)
         
         # Build context
         context_parts = []
