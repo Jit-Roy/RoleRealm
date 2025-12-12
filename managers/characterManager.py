@@ -419,21 +419,35 @@ class CharacterManager:
         - Character motivations and goals
         - Natural cause-and-effect from recent events
         - Whether the scene/location would attract or repel them
+        CRITICAL ENTRY DESCRIPTION RULES:
+        For character ENTRIES, the description MUST include what the entering character can PHYSICALLY OBSERVE:
+        1. **Location/Environment** - Brief description of where they are (the room, surroundings)
+        2. **Who is present** - Mention the characters they see in front of them
+        3. **Observable state** - Body language, facial expressions, tension they can SEE (not what was said)
+        DO NOT include in entry descriptions:
+        - Previous conversations (they weren't there to hear it)
+        - Why people are there (they don't know yet)
+        - Internal thoughts of others
+        ENTRY DESCRIPTION EXAMPLE:
+        "Dumbledore looks up from his ancient desk, taking in the three students standing before him - Harry, Ron, and Hermione. Their faces show visible concern, and tension fills the circular office lined with portraits and magical instruments."
+        EXIT DESCRIPTION EXAMPLE:
+        "Ron nods and quietly steps toward the door, glancing back once before leaving the room."
         RESPONSE FORMAT (JSON):
         {{
             "entries": [
                 {{
                     "character": "character_name",
-                    "description": "Brief description of how they enter (1-2 sentences)"
+                    "description": "2-3 sentences describing their entry with what they observe (location + who's present + observable state)"
                 }}
             ],
             "exits": [
                 {{
                     "character": "character_name",
-                    "description": "Brief description of how they leave (1-2 sentences)"
+                    "description": "1-2 sentences describing how they leave"
                 }}
             ]
         }}
+
         If no movements should happen, return: {{"entries": [], "exits": []}}
         Remember: Only include movements that make narrative sense RIGHT NOW."""
         try:
