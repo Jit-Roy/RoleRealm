@@ -65,9 +65,11 @@ def main():
     """Main entry point for the roleplay system."""
     
     # Configuration - Customize these for your roleplay
+    STORY_NAME = "Harry Potter"  # Story name (will use [Story Name]/characters and [Story Name]/stories)
+    
     PLAYER_NAME = "Harry"
-    CHARACTER_FILES = ["hermione", "ron"]  # Names of JSON files in characters/ folder
-    STORY_FILE = "complete_journey"  # Name of JSON file in stories/ folder
+    CHARACTER_FILES = ["hermione", "ron"]  # Names of JSON files
+    STORY_FILE = "complete_journey"  # Name of JSON file
     SCENE_TITLE = "Evening in the Common Room"
     SCENE_LOCATION = "Gryffindor Common Room, Hogwarts"
     SCENE_DESCRIPTION = (
@@ -81,13 +83,13 @@ def main():
     # Load story from JSON
     print("\n📖 Loading Story...")
     try:
-        story_arc = load_story(STORY_FILE)
+        story_arc = load_story(STORY_FILE, f"{STORY_NAME}/stories")
         print(f"   ✓ Loaded: {story_arc.title}\n")
     except Exception as e:
         print(f"❌ Error loading story: {e}")
         print("Using default story configuration...")
         try:
-            story_arc = load_story("evening_with_friends")
+            story_arc = load_story("evening_with_friends", f"{STORY_NAME}/stories")
         except:
             print("❌ Could not load any story. Continuing without story progression.")
             story_arc = None
@@ -98,13 +100,13 @@ def main():
     # Load character personas from JSON
     print("\n🔮 Loading characters...")
     try:
-        characters = load_characters(CHARACTER_FILES)
+        characters = load_characters(CHARACTER_FILES, f"{STORY_NAME}/characters")
         for char in characters:
             print(f"✨ {char.name} has joined")
         print()
     except Exception as e:
         print(f"❌ Error loading characters: {e}")
-        print("Please make sure character JSON files exist in the 'characters' folder.")
+        print(f"Please make sure character JSON files exist in the '{STORY_NAME}/characters' folder.")
         return
     
     # Display welcome message

@@ -11,13 +11,15 @@ from data_models import CharacterPersona
 class CharacterLoader:
     """Load character personas from JSON files."""
     
-    def __init__(self, characters_dir: str = "characters"):
+    def __init__(self, characters_dir: str):
         """
         Initialize the character loader.
         
         Args:
-            characters_dir: Directory containing character JSON files
+            characters_dir: Directory containing character JSON files (required)
         """
+        if not characters_dir:
+            raise ValueError("characters_dir is required and cannot be None or empty")
         self.characters_dir = Path(characters_dir)
         if not self.characters_dir.exists():
             raise ValueError(f"Characters directory not found: {self.characters_dir}")
@@ -98,13 +100,13 @@ class CharacterLoader:
         return filepath.exists()
 
 
-def load_character(character_name: str, characters_dir: str = "characters") -> CharacterPersona:
+def load_character(character_name: str, characters_dir: str) -> CharacterPersona:
     """
     Convenience function to load a single character.
     
     Args:
         character_name: Name of the character to load
-        characters_dir: Directory containing character JSON files
+        characters_dir: Directory containing character JSON files (required)
         
     Returns:
         CharacterPersona instance
@@ -113,13 +115,13 @@ def load_character(character_name: str, characters_dir: str = "characters") -> C
     return loader.load_character(character_name)
 
 
-def load_characters(character_names: list[str], characters_dir: str = "characters") -> list[CharacterPersona]:
+def load_characters(character_names: list[str], characters_dir: str) -> list[CharacterPersona]:
     """
     Convenience function to load multiple characters.
     
     Args:
         character_names: List of character names to load
-        characters_dir: Directory containing character JSON files
+        characters_dir: Directory containing character JSON files (required)
         
     Returns:
         List of CharacterPersona instances

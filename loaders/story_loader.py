@@ -11,13 +11,15 @@ from data_models import Story
 class StoryLoader:
     """Load story configurations from JSON files."""
     
-    def __init__(self, stories_dir: str = "stories"):
+    def __init__(self, stories_dir: str):
         """
         Initialize the story loader.
         
         Args:
-            stories_dir: Directory containing story JSON files
+            stories_dir: Directory containing story JSON files (required)
         """
+        if not stories_dir:
+            raise ValueError("stories_dir is required and cannot be None or empty")
         self.stories_dir = Path(stories_dir)
         if not self.stories_dir.exists():
             raise ValueError(f"Stories directory not found: {self.stories_dir}")
@@ -144,13 +146,13 @@ class StoryLoader:
             raise ValueError(f"Error reading story info from {filepath}: {e}")
 
 
-def load_story(story_name: str, stories_dir: str = "stories") -> Story:
+def load_story(story_name: str, stories_dir: str) -> Story:
     """
     Convenience function to load a single story.
     
     Args:
         story_name: Name of the story to load
-        stories_dir: Directory containing story JSON files
+        stories_dir: Directory containing story JSON files (required)
         
     Returns:
         Story instance
@@ -159,12 +161,12 @@ def load_story(story_name: str, stories_dir: str = "stories") -> Story:
     return loader.load_story(story_name)
 
 
-def list_stories(stories_dir: str = "stories") -> list[str]:
+def list_stories(stories_dir: str) -> list[str]:
     """
     Convenience function to list available stories.
     
     Args:
-        stories_dir: Directory containing story JSON files
+        stories_dir: Directory containing story JSON files (required)
         
     Returns:
         List of available story names
