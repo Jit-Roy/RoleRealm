@@ -2,6 +2,15 @@
 
 An interactive AI-powered roleplay system that brings characters to life through dynamic conversations and story-driven experiences, powered by OpenRouter API.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/image/1.jpg" alt="RoleRealm Screenshot 1" width="100%"/></td>
+    <td><img src="docs/image/2.jpg" alt="RoleRealm Screenshot 2" width="100%"/></td>
+  </tr>
+</table>
+
 ## Features
 
 - **Dynamic Character Interactions** - Create and interact with multiple AI characters, each with unique personalities and speaking styles
@@ -48,22 +57,35 @@ python main.py
 ```
 RoleRealm/
 ├── main.py                 # Main entry point
-├── characters/             # Character definition JSON files
-├── stories/                # Story arc JSON files
+├── [Story Name]/           # Story-specific folders (e.g., "Pirate Adventure")
+│   ├── characters/         # Character definition JSON files for this story
+│   ├── story/              # Story JSON file (single file per story)
+│   └── [story_name]_chat.json  # Saved conversation history for this story
 ├── managers/               # Core system managers
 │   ├── characterManager.py
 │   ├── timelineManager.py  # Unified timeline management (messages + scenes)
 │   ├── storyManager.py
 │   └── turn_manager.py
-├── chat_logs/              # Saved conversation histories
+├── loaders/                # Data loaders
+│   ├── character_loader.py
+│   └── story_loader.py
+├── helpers/                # Helper utilities
+│   └── response_parser.py
 └── config.py               # Configuration settings
 ```
 
 ## Customization
 
+### Creating a New Story
+
+1. Create a new folder with your story name (e.g., `My Adventure`)
+2. Inside, create two subfolders:
+   - `characters/` - For character JSON files
+   - `story/` - For the story JSON file (single file only)
+
 ### Creating Characters
 
-Define characters in JSON format in the `characters/` folder. Each character should include:
+Define characters in JSON format in the `[Story Name]/characters/` folder. Each character should include:
 - Name and traits
 - Speaking style
 - Background and relationships
@@ -71,10 +93,10 @@ Define characters in JSON format in the `characters/` folder. Each character sho
 
 ### Creating Stories
 
-Design story arcs in JSON format in the `stories/` folder with:
-- Story beats and scenes
-- Objectives and progression logic
-- Scene descriptions
+Design your story in JSON format in the `[Story Name]/story/` folder with:
+- Story title and description
+- Sequential objectives (list of objectives to achieve)
+- Story progression logic
 
 ## Contributing
 
