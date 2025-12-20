@@ -70,9 +70,6 @@ class TurnManager:
         decisions = []
         quota_exceeded = False
         
-        # Get story context if available
-        story_context = self.story_manager.get_story_context() if self.story_manager else None
-        
         # Define worker function for parallel execution
         def get_character_decision(character):
             return character, self.character_manager.decide_turn_response(
@@ -291,7 +288,32 @@ class TurnManager:
                 
                 # Generate scene event when conversation stalls
                 if self.consecutive_silence_rounds >= 2:
-                    self._generate_scene_event()
+                    try:
+                        scene = self.timeline_manager.generate_scene_event(
+                            scene_type="environmental",
+                            timeline=self.timeline,
+                            recent_event_count=15
+                        )
+                        
+                        print(f"\n{scene.description}\n")
+                        print("─"*70)
+                        
+                        # Add scene to timeline
+                        self.timeline_manager.add_event(self.timeline, scene)
+                        
+                        # Broadcast scene event to currently active characters only
+                        active_characters = [c for c in self.characters if c.persona.name in self.timeline.current_participants]
+                        self.character_manager.broadcast_event_to_characters(active_characters, scene)
+                        
+                        # Save conversation after scene event if callback is provided
+                        if self.save_callback:
+                            self.save_callback()
+                        
+                        time.sleep(2)
+                        
+                    except Exception as e:
+                        print(f"\nError generating scene event: {e}\n")
+                        print("─"*70)
                     # Reset silence counter after scene event
                     self.consecutive_silence_rounds = 0
                 
@@ -347,7 +369,6 @@ class TurnManager:
                 physical_action = action
                 
                 # Create and add the action to the timeline
-                from data_models import Action
                 action_obj = self.timeline_manager.create_action(
                     character=character.persona.name,
                     description=physical_action
@@ -378,40 +399,6 @@ class TurnManager:
             self.save_callback()
         
         return responses
-    
-    def _generate_scene_event(self) -> None:
-        """Generate a dramatic environmental scene event when conversation stalls."""
-        print("\n" + "─"*70)
-        print("🌅 ENVIRONMENTAL SCENE EVENT")
-        print("─"*70)
-        
-        # Generate environmental scene event (fallback for silence)
-        try:
-            scene = self.timeline_manager.generate_scene_event(
-                scene_type="environmental",
-                timeline=self.timeline,
-                recent_event_count=15
-            )
-            
-            print(f"\n{scene.description}\n")
-            print("─"*70)
-            
-            # Add scene to timeline
-            self.timeline_manager.add_event(self.timeline, scene)
-            
-            # Broadcast scene event to currently active characters only
-            active_characters = [c for c in self.characters if c.persona.name in self.timeline.current_participants]
-            self.character_manager.broadcast_event_to_characters(active_characters, scene)
-            
-            # Save conversation after scene event if callback is provided
-            if self.save_callback:
-                self.save_callback()
-            
-            time.sleep(2)
-            
-        except Exception as e:
-            print(f"\nError generating scene event: {e}\n")
-            print("─"*70)
     
     def _evaluate_objectives_with_judge(self) -> None:
         """Evaluate and update character objectives using unified judge LLM call."""
