@@ -416,7 +416,7 @@ class TurnManager:
             print("─"*70)
     
     def _evaluate_objectives_with_judge(self) -> None:
-        """Evaluate character and story objectives using judge LLM."""
+        """Evaluate and update character objectives using unified judge LLM call."""
         if not self.story_manager or not self.story_manager.story:
             return
         
@@ -437,41 +437,44 @@ class TurnManager:
         # Get recent timeline events
         recent_events = self.timeline_manager.get_recent_events(self.timeline, recent_event_count=15)
         
-        # Call judge LLM
-        evaluation = self.story_manager.evaluate_progress(active_characters, recent_events)
+        # Call unified judge LLM (handles both initial assignment and evaluation)
+        result = self.story_manager.evaluate_and_assign_objectives(active_characters, recent_events)
         
-        # Process character evaluations
+        # Process character updates
         print("\n📋 Character Objective Updates:")
-        char_evals = evaluation.get("character_evaluations", {})
+        char_updates = result.get("character_updates", {})
         
         for character in active_characters:
             char_name = character.persona.name
-            if char_name not in char_evals:
+            if char_name not in char_updates:
                 continue
             
-            char_eval = char_evals[char_name]
-            completed = char_eval.get("completed", False)
-            new_objective = char_eval.get("new_objective")
-            reasoning = char_eval.get("reasoning", "")
+            char_update = char_updates[char_name]
+            new_objective = char_update.get("objective")
+            status = char_update.get("status", "unknown")
+            reasoning = char_update.get("reasoning", "")
             
-            if completed:
-                print(f"   ✅ {char_name}: Objective completed!")
+            if status == "assigned":
+                print(f"   🎯 {char_name}: New objective assigned")
+                print(f"      Objective: \"{new_objective}\"")
                 print(f"      Reasoning: {reasoning}")
-                
-                # Assign new objective if provided
-                if new_objective:
-                    character.state.current_objective = new_objective
-                    print(f"      🎯 New objective: \"{new_objective}\"")
-                else:
-                    character.state.current_objective = None
-            else:
+                character.state.current_objective = new_objective
+            elif status == "completed":
+                print(f"   ✅ {char_name}: Objective completed!")
+                print(f"      New objective: \"{new_objective}\"")
+                print(f"      Reasoning: {reasoning}")
+                character.state.current_objective = new_objective
+            elif status == "continuing":
                 print(f"   ⏳ {char_name}: Continuing current objective")
                 if reasoning:
                     print(f"      Reasoning: {reasoning}")
+                # Keep current objective (or update if LLM provided one)
+                if new_objective:
+                    character.state.current_objective = new_objective
         
         # Check story objective completion
-        story_complete = evaluation.get("story_objective_complete", False)
-        story_reasoning = evaluation.get("reasoning", "")
+        story_complete = result.get("story_objective_complete", False)
+        story_reasoning = result.get("reasoning", "")
         
         print(f"\n📖 Story Objective Status:")
         if story_complete:
@@ -485,17 +488,11 @@ class TurnManager:
                 print(f"\n🎬 STORY PROGRESSION")
                 print(f"   Moving to next objective:")
                 print(f"   🎯 \"{new_objective}\"")
+                print(f"\n   Character objectives will be reassigned in next turn cycle.")
                 
-                # Assign new objectives to all active characters for new story objective
-                timeline_context = self.timeline_manager.get_timeline_context(self.timeline, recent_event_count=10)
-                new_char_objectives = self.story_manager.assign_initial_objectives(active_characters, timeline_context)
-                
-                print(f"\n📋 New Character Objectives:")
+                # Clear current objectives so next cycle will assign new ones
                 for character in active_characters:
-                    char_name = character.persona.name
-                    if char_name in new_char_objectives:
-                        character.state.current_objective = new_char_objectives[char_name]
-                        print(f"   🎯 {char_name}: \"{new_char_objectives[char_name]}\"")
+                    character.state.current_objective = None
             else:
                 # Story fully complete
                 print(f"\n🎉 STORY COMPLETE!")

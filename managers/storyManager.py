@@ -60,17 +60,17 @@ class StoryManager:
         progress = self.get_progress_percentage()
         
         context = f"""
-STORY: {self.story.title}
-Progress: {progress:.0f}% ({self.story.current_objective_index + 1} of {len(self.story.objectives)} objectives)
+        STORY: {self.story.title}
+        Progress: {progress:.0f}% ({self.story.current_objective_index + 1} of {len(self.story.objectives)} objectives)
 
-CURRENT STORY OBJECTIVE:
-{current_objective}
+        CURRENT STORY OBJECTIVE:
+        {current_objective}
 
-OVERALL STORY CONTEXT:
-{self.story.description}
+        OVERALL STORY CONTEXT:
+        {self.story.description}
 
-Remember: Work naturally toward accomplishing the current objective through your character's unique perspective and abilities.
-"""
+        Remember: Work naturally toward accomplishing the current objective through your character's unique perspective and abilities.
+        """
         return context
     
     def assign_initial_objectives(
@@ -102,35 +102,30 @@ Remember: Work naturally toward accomplishing the current objective through your
             )
         
         prompt = f"""You are assigning objectives to characters in an interactive roleplay story.
+        STORY: {self.story.title}
+        {self.story.description}
+        CURRENT STORY OBJECTIVE (what needs to be achieved):
+        {current_objective}
+        ACTIVE CHARACTERS:
+        {chr(10).join(char_descriptions)}
+        RECENT CONTEXT:
+        {timeline_context}
+        TASK: Assign ONE specific objective to EACH character that helps achieve the current story objective.
 
-STORY: {self.story.title}
-{self.story.description}
+        Guidelines:
+        - Make objectives specific enough to guide the character, but flexible enough to allow creativity
+        - Consider each character's unique abilities and personality
+        - Objectives should be complementary (characters working together from different angles)
+        - Objectives should be achievable through conversation/action in 3-10 turns
+        - Don't assign the exact same objective to multiple characters
 
-CURRENT STORY OBJECTIVE (what needs to be achieved):
-{current_objective}
-
-ACTIVE CHARACTERS:
-{chr(10).join(char_descriptions)}
-
-RECENT CONTEXT:
-{timeline_context}
-
-TASK: Assign ONE specific objective to EACH character that helps achieve the current story objective.
-
-Guidelines:
-- Make objectives specific enough to guide the character, but flexible enough to allow creativity
-- Consider each character's unique abilities and personality
-- Objectives should be complementary (characters working together from different angles)
-- Objectives should be achievable through conversation/action in 3-10 turns
-- Don't assign the exact same objective to multiple characters
-
-Respond ONLY with valid JSON in this format:
-{{
-  "character_objectives": {{
-    "CharacterName1": "specific objective for this character",
-    "CharacterName2": "specific objective for this character"
-  }}
-}}"""
+        Respond ONLY with valid JSON in this format:
+        {{
+        "character_objectives": {{
+            "CharacterName1": "specific objective for this character",
+            "CharacterName2": "specific objective for this character"
+        }}
+        }}"""
 
         try:
             response = self.model.generate_content(prompt)
@@ -153,13 +148,21 @@ Respond ONLY with valid JSON in this format:
                 for char in active_characters
             }
     
-    def evaluate_progress(
+    def evaluate_and_assign_objectives(
         self,
         active_characters: List[Character],
         recent_timeline_events: List[TimelineEvent]
     ) -> Dict[str, Any]:
         """
-        Judge LLM evaluates character objective completion and story objective completion.
+        Unified LLM call that handles both initial assignment and ongoing evaluation.
+        
+        If characters don't have objectives (first turn or after story advances):
+            - Assigns initial objectives
+        
+        If characters have objectives:
+            - Evaluates completion
+            - Assigns new objectives to those who completed
+            - Checks story objective completion
         
         Args:
             active_characters: List of currently active characters
@@ -168,30 +171,38 @@ Respond ONLY with valid JSON in this format:
         Returns:
             Dictionary with evaluation results:
             {
-                "character_evaluations": {
-                    "CharacterName": {"completed": bool, "new_objective": str or None}
+                "character_updates": {
+                    "CharacterName": {
+                        "objective": "current or new objective",
+                        "status": "assigned|completed|continuing",
+                        "reasoning": "explanation"
+                    }
                 },
                 "story_objective_complete": bool,
-                "reasoning": str
+                "reasoning": "story completion reasoning"
             }
         """
         if not self.story or self.is_story_complete():
             return {
-                "character_evaluations": {},
+                "character_updates": {},
                 "story_objective_complete": True,
                 "reasoning": "Story is complete"
             }
         
         current_story_objective = self.get_current_objective()
         
+        # Check if this is first turn (characters have no objectives)
+        is_first_turn = all(
+            not char.state.current_objective 
+            for char in active_characters
+        )
+        
         # Build timeline summary
         timeline_summary = []
-        for event in recent_timeline_events[-15:]:  # Last 15 events
+        for event in recent_timeline_events[-15:]:
             if hasattr(event, 'character') and hasattr(event, 'dialouge'):
-                # Message
                 timeline_summary.append(f"{event.character}: {event.dialouge}")
             elif hasattr(event, 'character') and hasattr(event, 'description') and hasattr(event, '__class__'):
-                # Action, Scene, Entry, Exit
                 event_type = event.__class__.__name__
                 if event_type == "Action":
                     timeline_summary.append(f"[ACTION] {event.character}: {event.description}")
@@ -204,51 +215,86 @@ Respond ONLY with valid JSON in this format:
         
         timeline_text = "\n".join(timeline_summary) if timeline_summary else "No recent events"
         
-        # Build character objectives summary
-        char_objectives = []
+        # Build character info
+        char_info = []
         for char in active_characters:
-            if char.state and char.state.current_objective:
-                char_objectives.append(f"- {char.persona.name}: \"{char.state.current_objective}\"")
-            else:
-                char_objectives.append(f"- {char.persona.name}: No objective assigned")
+            traits = ", ".join(char.persona.traits)
+            current_obj = char.state.current_objective if char.state.current_objective else "None"
+            char_info.append(
+                f"- {char.persona.name}: Traits: {traits}. Current Objective: {current_obj}"
+            )
         
-        char_objectives_text = "\n".join(char_objectives)
+        char_info_text = "\n".join(char_info)
         
-        prompt = f"""You are evaluating story progression in an interactive roleplay.
+        if is_first_turn:
+            # First turn: Assign initial objectives
+            prompt = f"""You are assigning objectives to characters in an interactive roleplay story.
 
-CURRENT STORY OBJECTIVE (Overall goal to achieve):
+STORY: {self.story.title}
+{self.story.description}
+
+CURRENT STORY OBJECTIVE (what needs to be achieved):
 {current_story_objective}
 
-ACTIVE CHARACTERS AND THEIR CURRENT OBJECTIVES:
-{char_objectives_text}
+ACTIVE CHARACTERS:
+{char_info_text}
+
+RECENT CONTEXT:
+{timeline_text}
+
+TASK: Assign ONE specific objective to EACH character that helps achieve the current story objective.
+
+Guidelines:
+- Make objectives specific but flexible
+- Consider each character's unique abilities and personality
+- Objectives should complement each other
+- Achievable through conversation/action in 3-10 turns
+
+Respond ONLY with valid JSON:
+{{
+  "character_updates": {{
+    "CharacterName1": {{
+      "objective": "specific objective for this character",
+      "status": "assigned",
+      "reasoning": "why this objective fits them"
+    }}
+  }},
+  "story_objective_complete": false,
+  "reasoning": "Story just started, objective not yet complete"
+}}"""
+        else:
+            # Ongoing: Evaluate and reassign
+            prompt = f"""You are evaluating story progression in an interactive roleplay.
+
+CURRENT STORY OBJECTIVE (Overall goal):
+{current_story_objective}
+
+ACTIVE CHARACTERS AND CURRENT OBJECTIVES:
+{char_info_text}
 
 RECENT CONVERSATION (Last 15 events):
 {timeline_text}
 
-EVALUATE:
+EVALUATE AND UPDATE:
 
-1. For EACH character - has their current objective been completed based on recent conversation?
-   - Consider: Did they accomplish what was asked, even if indirectly?
-   - Consider: Has enough progress been made to mark it complete?
-   - If YES and story is continuing, provide a NEW objective for them
-   - If NO, they keep their current objective
+1. For EACH character:
+   - If objective completed: Provide NEW objective toward current story goal, status="completed"
+   - If ongoing: Keep same objective, status="continuing"
 
-2. For the STORY OBJECTIVE - has it been achieved?
-   - Consider: Has the conversation naturally accomplished the story goal?
-   - Consider: Even if not all character objectives are done, is the story goal met?
-   - Consider: Has the purpose of this objective been fulfilled?
+2. For STORY OBJECTIVE:
+   - Is it achieved? (Even if some character objectives incomplete)
 
-Respond ONLY with valid JSON in this format:
+Respond ONLY with valid JSON:
 {{
-  "character_evaluations": {{
+  "character_updates": {{
     "CharacterName1": {{
-      "completed": true/false,
-      "new_objective": "new objective string if completed=true AND story continuing, otherwise null",
+      "objective": "new objective if completed, otherwise same as current",
+      "status": "completed|continuing",
       "reasoning": "brief explanation"
     }}
   }},
   "story_objective_complete": true/false,
-  "reasoning": "explain why story objective is or isn't complete"
+  "reasoning": "story objective status explanation"
 }}"""
 
         try:
@@ -265,17 +311,25 @@ Respond ONLY with valid JSON in this format:
             return result
             
         except Exception as e:
-            print(f"⚠️ Error in judge evaluation: {e}")
-            # Fallback: no changes
-            return {
-                "character_evaluations": {
-                    char.persona.name: {
-                        "completed": False,
-                        "new_objective": None,
+            print(f"⚠️ Error in objective evaluation: {e}")
+            # Fallback
+            fallback_updates = {}
+            for char in active_characters:
+                if is_first_turn:
+                    fallback_updates[char.persona.name] = {
+                        "objective": f"Help achieve: {current_story_objective}",
+                        "status": "assigned",
+                        "reasoning": "Fallback objective"
+                    }
+                else:
+                    fallback_updates[char.persona.name] = {
+                        "objective": char.state.current_objective or f"Help achieve: {current_story_objective}",
+                        "status": "continuing",
                         "reasoning": "Evaluation error"
                     }
-                    for char in active_characters
-                },
+            
+            return {
+                "character_updates": fallback_updates,
                 "story_objective_complete": False,
                 "reasoning": f"Error during evaluation: {e}"
             }
@@ -305,16 +359,16 @@ Respond ONLY with valid JSON in this format:
         
         if self.is_story_complete():
             return f"""
-📖 Story Complete: {self.story.title}
-✅ All {len(self.story.objectives)} objectives achieved!
-"""
+            📖 Story Complete: {self.story.title}
+            ✅ All {len(self.story.objectives)} objectives achieved!
+            """
         
         current_objective = self.get_current_objective()
         progress = self.get_progress_percentage()
         
         return f"""
-📖 Story: {self.story.title}
-📊 Progress: {progress:.0f}% 
-🎯 Objective {self.story.current_objective_index + 1} of {len(self.story.objectives)}
-   "{current_objective}"
-"""
+        📖 Story: {self.story.title}
+        📊 Progress: {progress:.0f}% 
+        🎯 Objective {self.story.current_objective_index + 1} of {len(self.story.objectives)}
+        "{current_objective}"
+        """

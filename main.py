@@ -132,7 +132,7 @@ def main():
             # Display the initial scene
             display_initial_scene(SCENE_TITLE, SCENE_LOCATION, SCENE_DESCRIPTION)
             
-            # Display initial story objectives and assign character objectives
+            # Display initial story objectives
             if story_manager:
                 current_objective = story_manager.get_current_objective()
                 if current_objective:
@@ -142,19 +142,7 @@ def main():
                     print(f"\n🎯 Current Objective:")
                     print(f"   {current_objective}")
                     print("\n" + "="*70 + "\n")
-                    
-                    # Assign initial objectives to all characters
-                    active_characters = [c for c in system.ai_characters if c.persona.name in system.timeline.current_participants]
-                    timeline_context = system.timeline_manager.get_timeline_context(system.timeline, recent_event_count=5)
-                    
-                    print("🎲 Assigning character objectives...\n")
-                    char_objectives = story_manager.assign_initial_objectives(active_characters, timeline_context)
-                    
-                    for character in active_characters:
-                        if character.persona.name in char_objectives:
-                            character.state.current_objective = char_objectives[character.persona.name]
-                            print(f"   🎯 {character.persona.name}: \"{char_objectives[character.persona.name]}\"")
-                    print()
+                    print("   Character objectives will be assigned after first turn.\n")
             
             # Start the roleplay session
             print("🎬 Starting the conversation...\n")
@@ -164,7 +152,7 @@ def main():
             print(f"\n💬 {PLAYER_NAME}: {INITIAL_GREETING}")
             system._add_player_message(INITIAL_GREETING)
             
-            # Let AI characters respond
+            # Let AI characters respond (objectives assigned automatically in first evaluation)
             ai_responses = system.turn_manager.process_ai_responses()
         else:
             # Continuing conversation - show recent events

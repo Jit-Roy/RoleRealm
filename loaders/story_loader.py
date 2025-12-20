@@ -52,38 +52,10 @@ class StoryLoader:
             with open(filepath, 'r', encoding='utf-8') as f:
                 story_data = json.load(f)
             
-            # Process beats to add IDs and default values
-            beats = story_data.get("beats", [])
-            processed_beats = []
-            
-            for beat in beats:
-                # Add beat ID if not present
-                if "id" not in beat:
-                    beat["id"] = str(uuid.uuid4())
-                
-                # Add completed flag if not present
-                if "completed" not in beat:
-                    beat["completed"] = False
-                
-                # Process events within the beat
-                events = beat.get("events", [])
-                processed_events = []
-                
-                for event in events:
-                    # Add event ID if not present
-                    if "id" not in event:
-                        event["id"] = str(uuid.uuid4())
-                    
-                    # Add triggered flag if not present
-                    if "triggered" not in event:
-                        event["triggered"] = False
-                    
-                    processed_events.append(event)
-                
-                beat["events"] = processed_events
-                processed_beats.append(beat)
-            
-            story_data["beats"] = processed_beats
+            # No beat processing needed - just load the story with objectives
+            # Ensure current_objective_index exists
+            if "current_objective_index" not in story_data:
+                story_data["current_objective_index"] = 0
             
             # Create and return Story
             return Story(**story_data)
