@@ -11,42 +11,48 @@ from data_models import Story
 class StoryLoader:
     """Load story configurations from JSON files."""
     
-    def __init__(self, stories_dir: str):
+    def __init__(self, base_dir: str):
         """
         Initialize the story loader.
         
         Args:
-            stories_dir: Directory containing story JSON files (required)
+            base_dir: Base story directory (e.g., 'D:\RoleRealm\Pirate Adventure')
+            The loader will automatically look in the 'story' subdirectory
         """
-        if not stories_dir:
-            raise ValueError("stories_dir is required and cannot be None or empty")
-        self.stories_dir = Path(stories_dir)
-        if not self.stories_dir.exists():
-            raise ValueError(f"Stories directory not found: {self.stories_dir}")
-    
-    def load_story(self, story_name: str) -> Story:
-        """
-        Load a story from a JSON file.
+        if not base_dir:
+            raise ValueError("base_dir is required and cannot be None or empty")
+        self.base_dir = Path(base_dir)
+        if not self.base_dir.exists():
+            raise ValueError(f"Story base directory not found: {self.base_dir}")
         
-        Args:
-            story_name: Name of the story file (without .json extension)
-            
+        # Automatically append 'story' subdirectory
+        self.stories_dir = self.base_dir / "story"
+        if not self.stories_dir.exists():
+            raise ValueError(f"Story directory not found: {self.stories_dir}")
+    
+    def load_story(self) -> Story:
+        """
+        Load the story from the single JSON file in the story directory.
+        
         Returns:
             Story instance
             
         Raises:
-            FileNotFoundError: If story file doesn't exist
+            FileNotFoundError: If no story file found or multiple story files found
             ValueError: If JSON is invalid or missing required fields
         """
-        # Convert story name to lowercase for file lookup
-        filename = f"{story_name.lower()}.json"
-        filepath = self.stories_dir / filename
+        # Find all JSON files in the story directory
+        story_files = list(self.stories_dir.glob("*.json"))
         
-        if not filepath.exists():
-            raise FileNotFoundError(
-                f"Story file not found: {filepath}\n"
-                f"Available stories: {self.list_available_stories()}"
+        if len(story_files) == 0:
+            raise FileNotFoundError(f"No story file found in: {self.stories_dir}")
+        elif len(story_files) > 1:
+            raise ValueError(
+                f"Multiple story files found in {self.stories_dir}. "
+                f"Only one story file is allowed: {[f.name for f in story_files]}"
             )
+        
+        filepath = story_files[0]
         
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
@@ -64,84 +70,31 @@ class StoryLoader:
             raise ValueError(f"Invalid JSON in {filepath}: {e}")
         except Exception as e:
             raise ValueError(f"Error loading story from {filepath}: {e}")
-    
-    def list_available_stories(self) -> list[str]:
+
+
+    def get_story_file_name(base_dir: str) -> str:
         """
-        List all available story JSON files.
-        
-        Returns:
-            List of story names (without .json extension)
-        """
-        story_files = self.stories_dir.glob("*.json")
-        return [f.stem for f in story_files]
-    
-    def story_exists(self, story_name: str) -> bool:
-        """
-        Check if a story JSON file exists.
+        Get the name of the story file in the directory.
         
         Args:
-            story_name: Name of the story to check
+            base_dir: Base story directory (e.g., 'D:\RoleRealm\Pirate Adventure')
             
         Returns:
-            True if story file exists, False otherwise
-        """
-        filename = f"{story_name.lower()}.json"
-        filepath = self.stories_dir / filename
-        return filepath.exists()
-    
-    def get_story_info(self, story_name: str) -> dict:
-        """
-        Get basic information about a story without fully loading it.
-        
-        Args:
-            story_name: Name of the story to get info about
+            Name of the story file (with .json extension)
             
-        Returns:
-            Dictionary with title and description
+        Raises:
+            FileNotFoundError: If no story file found
+            ValueError: If multiple story files found
         """
-        filename = f"{story_name.lower()}.json"
-        filepath = self.stories_dir / filename
+        story_dir = Path(base_dir) / "story"
+        story_files = list(story_dir.glob("*.json"))
         
-        if not filepath.exists():
-            raise FileNotFoundError(f"Story file not found: {filepath}")
+        if len(story_files) == 0:
+            raise FileNotFoundError(f"No story file found in: {story_dir}")
+        elif len(story_files) > 1:
+            raise ValueError(
+                f"Multiple story files found in {story_dir}. "
+                f"Only one story file is allowed: {[f.name for f in story_files]}"
+            )
         
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                story_data = json.load(f)
-            
-            return {
-                "title": story_data.get("title", "Unknown"),
-                "description": story_data.get("description", "No description"),
-                "num_beats": len(story_data.get("beats", []))
-            }
-        except Exception as e:
-            raise ValueError(f"Error reading story info from {filepath}: {e}")
-
-
-def load_story(story_name: str, stories_dir: str) -> Story:
-    """
-    Convenience function to load a single story.
-    
-    Args:
-        story_name: Name of the story to load
-        stories_dir: Directory containing story JSON files (required)
-        
-    Returns:
-        Story instance
-    """
-    loader = StoryLoader(stories_dir)
-    return loader.load_story(story_name)
-
-
-def list_stories(stories_dir: str) -> list[str]:
-    """
-    Convenience function to list available stories.
-    
-    Args:
-        stories_dir: Directory containing story JSON files (required)
-        
-    Returns:
-        List of available story names
-    """
-    loader = StoryLoader(stories_dir)
-    return loader.list_available_stories()
+        return story_files[0].name

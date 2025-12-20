@@ -11,16 +11,21 @@ from data_models import CharacterPersona
 class CharacterLoader:
     """Load character personas from JSON files."""
     
-    def __init__(self, characters_dir: str):
+    def __init__(self, base_dir: str):
         """
         Initialize the character loader.
         
         Args:
-            characters_dir: Directory containing character JSON files (required)
+            base_dir: Base story directory (e.g., 'D:\RoleRealm\Pirate Adventure')
+            The loader will automatically look in the 'characters' subdirectory
         """
-        if not characters_dir:
-            raise ValueError("characters_dir is required and cannot be None or empty")
-        self.characters_dir = Path(characters_dir)
+        if not base_dir:
+            raise ValueError("base_dir is required and cannot be None or empty")
+        self.base_dir = Path(base_dir)
+        if not self.base_dir.exists():
+            raise ValueError(f"Story base directory not found: {self.base_dir}")
+        
+        self.characters_dir = self.base_dir / "characters"
         if not self.characters_dir.exists():
             raise ValueError(f"Characters directory not found: {self.characters_dir}")
     
@@ -52,7 +57,6 @@ class CharacterLoader:
             with open(filepath, 'r', encoding='utf-8') as f:
                 character_data = json.load(f)
             
-            # Create and return CharacterPersona
             return CharacterPersona(**character_data)
             
         except json.JSONDecodeError as e:
@@ -98,33 +102,3 @@ class CharacterLoader:
         filename = f"{character_name.lower()}.json"
         filepath = self.characters_dir / filename
         return filepath.exists()
-
-
-def load_character(character_name: str, characters_dir: str) -> CharacterPersona:
-    """
-    Convenience function to load a single character.
-    
-    Args:
-        character_name: Name of the character to load
-        characters_dir: Directory containing character JSON files (required)
-        
-    Returns:
-        CharacterPersona instance
-    """
-    loader = CharacterLoader(characters_dir)
-    return loader.load_character(character_name)
-
-
-def load_characters(character_names: list[str], characters_dir: str) -> list[CharacterPersona]:
-    """
-    Convenience function to load multiple characters.
-    
-    Args:
-        character_names: List of character names to load
-        characters_dir: Directory containing character JSON files (required)
-        
-    Returns:
-        List of CharacterPersona instances
-    """
-    loader = CharacterLoader(characters_dir)
-    return loader.load_multiple_characters(character_names)

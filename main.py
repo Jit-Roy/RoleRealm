@@ -8,8 +8,8 @@ from colorama import Fore, Style, init
 from roleplay_system import RoleplaySystem
 from config import Config
 from managers.storyManager import StoryManager
-from loaders.character_loader import load_characters
-from loaders.story_loader import load_story
+from loaders.character_loader import CharacterLoader
+from loaders.story_loader import StoryLoader
 from data_models import Message, Scene, Action, CharacterEntry, CharacterExit
 
 # Initialize colorama for Windows color support
@@ -64,11 +64,10 @@ def main():
     """Main entry point for the roleplay system."""
     
     # Configuration - Customize these for your roleplay
-    STORY_NAME = "Pirate Adventure"  # Story name (will use [Story Name]/characters and [Story Name]/stories)
+    BASE_DIR = "Pirate Adventure"  # Base directory containing 'characters' and 'story' folders
     
     PLAYER_NAME = "Captain Morgan"  # You, the player
     CHARACTER_FILES = ["marina", "jack", "captain", "old_sailor"]  # Names of JSON files
-    STORY_FILE = "phantom_pearl"  # Name of JSON file
     SCENE_TITLE = "Aboard the Sea Serpent"
     SCENE_LOCATION = "The Sea Serpent - Main Deck"
     SCENE_DESCRIPTION = (
@@ -83,16 +82,13 @@ def main():
     # Load story from JSON
     print("\n📖 Loading Story...")
     try:
-        story_arc = load_story(STORY_FILE, f"{STORY_NAME}/stories")
+        story_loader = StoryLoader(BASE_DIR)
+        story_arc = story_loader.load_story()
         print(f"   ✓ Loaded: {story_arc.title}\n")
     except Exception as e:
         print(f"❌ Error loading story: {e}")
-        print("Using default story configuration...")
-        try:
-            story_arc = load_story("evening_with_friends", f"{STORY_NAME}/stories")
-        except:
-            print("❌ Could not load any story. Continuing without story progression.")
-            story_arc = None
+        print("❌ Could not load story. Continuing without story progression.")
+        story_arc = None
     
     # Create story manager
     story_manager = StoryManager(story_arc) if story_arc else None
@@ -100,13 +96,14 @@ def main():
     # Load character personas from JSON
     print("\n🔮 Loading characters...")
     try:
-        characters = load_characters(CHARACTER_FILES, f"{STORY_NAME}/characters")
+        character_loader = CharacterLoader(BASE_DIR)
+        characters = character_loader.load_multiple_characters(CHARACTER_FILES)
         for char in characters:
             print(f"✨ {char.name} has joined")
         print()
     except Exception as e:
         print(f"❌ Error loading characters: {e}")
-        print(f"Please make sure character JSON files exist in the '{STORY_NAME}/characters' folder.")
+        print(f"Please make sure character JSON files exist in the '{BASE_DIR}/characters' folder.")
         return
     
     # Display welcome message
