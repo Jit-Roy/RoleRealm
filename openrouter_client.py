@@ -8,7 +8,7 @@ from config import Config
 
 
 class GenerativeModel:
-    """Model wrapper that mimics google.generativeai.GenerativeModel interface."""
+    """Model wrapper"""
     
     def __init__(self, model_name: str, api_key: Optional[str] = None):
         """
