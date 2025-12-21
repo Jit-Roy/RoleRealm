@@ -1,4 +1,4 @@
-# RoleRealm
+# RoleRealm-A-Story-Driven-Roleplay
 
 An interactive AI-powered roleplay system that brings characters to life through dynamic conversations and story-driven experiences, powered by OpenRouter API.
 
@@ -73,6 +73,8 @@ RoleRealm/
 │   └── response_parser.py
 └── config.py               # Configuration settings
 ```
+
+For more info visit [docs/README.md](docs/README.md)
 
 ## Customization
 
